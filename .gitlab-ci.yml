@@ -1,0 +1,8 @@
+---
+variables:
+  SERVICE_NAME: ${CI_PROJECT_NAME}
+
+include:
+  - project: 'rsa/devops/template-cicd'
+    ref: master
+    file: 'commission/gitlab-ci-template-secret-first.yml'
