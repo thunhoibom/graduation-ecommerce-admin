@@ -22,6 +22,7 @@ import {
   toggleDiscountActive,
   type DiscountCodePojo,
   type DiscountSearchParams,
+  type DiscountType,
 } from '@/services/rest-api/app-api/discounts/discount-service'
 import AppTable from '@/shared/components/antd/AppTable'
 
@@ -130,7 +131,7 @@ const DiscountListView: React.FC = () => {
       const payload: DiscountCodePojo = {
         code: values.code as string,
         description: values.description as string,
-        type: values.type as string,
+        type: values.type as DiscountType,
         value: Number(values.value),
         maxUses: values.maxUses ? Number(values.maxUses) : undefined,
         maxUsesPerCustomer: values.maxUsesPerCustomer ? Number(values.maxUsesPerCustomer) : undefined,

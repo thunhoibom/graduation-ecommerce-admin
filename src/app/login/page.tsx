@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const onFinish = async (values: { username: string; password: string }) => {
+  const onFinish = async (values: { name: string; password: string }) => {
     setLoading(true)
     try {
       await authService.login(values)
@@ -81,7 +81,7 @@ export default function LoginPage() {
           requiredMark={false}
         >
           <Form.Item
-            name="username"
+            name="name"
             label="Tên đăng nhập"
             rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập' }]}
           >

@@ -7,11 +7,13 @@ const discountService = createApiService(appApiIns, '/api/data/discount-codes')
 // Types
 // ─────────────────────────────────────────────────────────────────
 
+export type DiscountType = 'PERCENT' | 'FIXED'
+
 export type DiscountCodePojo = {
   id?: number
   code: string
   description?: string
-  type: string   // PERCENT, FIXED
+  type: DiscountType
   value: number
   maxUses?: number
   useCount?: number
@@ -24,12 +26,29 @@ export type DiscountCodePojo = {
   updatedAt?: string
   currentlyValid?: boolean
   remainingUses?: number
+  // Enriched
+  totalDiscountGiven?: number
+  ordersUsed?: number
+}
+
+export type DiscountFormData = {
+  id?: number
+  code: string
+  description?: string
+  type: DiscountType
+  value: number
+  maxUses?: number
+  maxUsesPerCustomer?: number
+  minCartValue?: number
+  validFrom?: string
+  validUntil?: string
+  active?: boolean
 }
 
 export type DiscountSearchParams = {
   code?: string
   active?: boolean
-  type?: string
+  type?: DiscountType
   page?: number
   size?: number
 }
@@ -56,11 +75,11 @@ export const getDiscountById = (id: number) => {
   return discountService.get<DiscountCodePojo>(`/${id}`)
 }
 
-export const createDiscount = (data: DiscountCodePojo) => {
+export const createDiscount = (data: DiscountFormData) => {
   return discountService.post<DiscountCodePojo>('', data)
 }
 
-export const updateDiscount = (id: number, data: DiscountCodePojo) => {
+export const updateDiscount = (id: number, data: DiscountFormData) => {
   return discountService.put<DiscountCodePojo>(`/${id}`, data)
 }
 

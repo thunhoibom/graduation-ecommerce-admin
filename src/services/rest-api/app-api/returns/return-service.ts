@@ -7,11 +7,25 @@ const returnService = createApiService(appApiIns, '/api/data/return-requests')
 // Types
 // ─────────────────────────────────────────────────────────────────
 
+// Backend: ReturnRequest.RefundMethod
+export type RefundMethod = 'ORIGINAL_PAYMENT' | 'STORE_CREDIT' | 'BANK_TRANSFER'
+
+// Backend: ReturnRequest.ReturnRequestStatus
+export type ReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUND_PROCESSING' | 'REFUND_COMPLETED' | 'CANCELLED'
+
 export type ReturnRequestItemPojo = {
   id?: number
   quantity?: number
   reason?: string
-  returnPrice?: number
+  isActive?: boolean
+  productId?: number
+  variantId?: number
+  product?: {
+    id?: number
+    name?: string
+    barcode?: string
+    images?: { url: string }[]
+  }
 }
 
 export type ReturnRequestPojo = {
@@ -20,16 +34,25 @@ export type ReturnRequestPojo = {
   lastModified?: string
   reason?: string
   adminNotes?: string
-  status?: string   // PENDING, APPROVED, REJECTED, RECEIVED, COMPLETED, CANCELLED
-  refundMethod?: string
+  status?: ReturnStatus
+  refundMethod?: RefundMethod
   refundAmount?: number
   trackingNumber?: string
   orderId?: number
   items?: ReturnRequestItemPojo[]
+  // Enriched fields from joined entities
+  order?: {
+    id?: number
+    date?: string
+    recipientName?: string
+    recipientPhone?: string
+    totalValue?: number
+    status?: string
+  }
 }
 
 export type ReturnSearchParams = {
-  status?: string
+  status?: ReturnStatus
   orderId?: number
   page?: number
   size?: number
@@ -69,6 +92,10 @@ export const receiveReturn = (id: number) => {
   return returnService.post<ReturnRequestPojo>(`/receive/${id}`, {})
 }
 
+export const startRefundProcessing = (id: number) => {
+  return returnService.post<ReturnRequestPojo>(`/start-refund/${id}`, {})
+}
+
 export const completeRefund = (id: number) => {
   return returnService.post<ReturnRequestPojo>(`/complete-refund/${id}`, {})
 }
@@ -79,4 +106,8 @@ export const cancelReturn = (id: number, reason?: string) => {
 
 export const addTrackingNumber = (id: number, trackingNumber: string) => {
   return returnService.post<ReturnRequestPojo>(`/tracking/${id}`, { trackingNumber })
+}
+
+export const updateReturnNotes = (id: number, adminNotes: string) => {
+  return returnService.post<ReturnRequestPojo>(`/notes/${id}`, { adminNotes })
 }

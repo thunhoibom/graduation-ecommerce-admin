@@ -1,15 +1,15 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import MediaListView from './_components/MediaListView'
+import DiscountListView from './_components/DiscountListView'
 
 export const metadata: Metadata = {
-  title: 'Thư viện media | Mono Studio Admin',
+  title: 'Mã giảm giá | Mono Studio Admin',
 }
 
-export default function MediaPage() {
+export default function DiscountCodesPage() {
   return (
     <Suspense fallback={<div style={{ padding: 24 }}>Đang tải...</div>}>
-      <MediaListView />
+      <DiscountListView />
     </Suspense>
   )
 }

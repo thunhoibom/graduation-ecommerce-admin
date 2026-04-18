@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Table, Card, Typography, Row, Col, Button, Input, Select,
-  Tag, Modal, Descriptions, Divider, Space, message, Popconfirm,
+  Tag, Space, message, Popconfirm,
 } from 'antd'
 import {
   EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -16,7 +17,6 @@ import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
   searchReturns,
-  getReturnById,
   approveReturn,
   rejectReturn,
   receiveReturn,
@@ -32,12 +32,13 @@ const { Title, Text } = Typography
 // ── Status Config ────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING:      { color: 'orange', label: 'Chờ duyệt' },
-  APPROVED:     { color: 'blue',   label: 'Đã duyệt' },
-  REJECTED:     { color: 'red',    label: 'Từ chối' },
-  RECEIVED:     { color: 'cyan',   label: 'Đã nhận hàng' },
-  COMPLETED:    { color: 'green',  label: 'Hoàn tiền xong' },
-  CANCELLED:    { color: 'default',label: 'Đã hủy' },
+  PENDING:           { color: 'orange',     label: 'Chờ duyệt' },
+  APPROVED:          { color: 'blue',       label: 'Đã duyệt' },
+  REJECTED:          { color: 'red',        label: 'Từ chối' },
+  RECEIVED:          { color: 'cyan',       label: 'Đã nhận hàng' },
+  REFUND_PROCESSING: { color: 'processing', label: 'Đang hoàn tiền' },
+  REFUND_COMPLETED:  { color: 'green',      label: 'Hoàn tiền xong' },
+  CANCELLED:         { color: 'default',    label: 'Đã hủy' },
 }
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, cfg]) => ({
@@ -59,13 +60,12 @@ const formatVND = (value: number | undefined) => {
 // ── ReturnListView ───────────────────────────────────────────────
 
 const ReturnListView: React.FC = () => {
+  const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<ReturnSearchParams>>({
     page: 1,
     size: 20,
   })
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
 
@@ -92,17 +92,6 @@ const ReturnListView: React.FC = () => {
     setQueryParams((prev) => ({ ...prev, [key]: value, page: 1 }))
   }, [])
 
-  const handleView = useCallback((record: ReturnRequestPojo) => {
-    setSelectedId(record.id!)
-    setDetailOpen(true)
-  }, [])
-
-  const { data: returnDetail } = useAxiosSWR<ReturnRequestPojo>(
-    detailOpen && selectedId ? [SWR_KEYS.RETURN_LIST, selectedId] : null,
-    detailOpen && selectedId ? async () => getReturnById(selectedId) : null,
-    { revalidateOnMount: true },
-  )
-
   const handleAction = async (
     action: 'approve' | 'reject' | 'receive' | 'complete' | 'cancel',
     id: number,
@@ -110,72 +99,17 @@ const ReturnListView: React.FC = () => {
   ) => {
     try {
       switch (action) {
-        case 'approve': await approveReturn(id); break
-        case 'reject': await rejectReturn(id, reason); break
-        case 'receive': await receiveReturn(id); break
+        case 'approve':  await approveReturn(id); break
+        case 'reject':   await rejectReturn(id, reason); break
+        case 'receive':  await receiveReturn(id); break
         case 'complete': await completeRefund(id); break
-        case 'cancel': await cancelReturn(id, reason); break
+        case 'cancel':   await cancelReturn(id, reason); break
       }
-      messageApi.success('Cập nhật thành công')
-      setDetailOpen(false)
+      messageApi.success('Cập nhật trạng thái thành công')
       mutate()
     } catch {
       messageApi.error('Thao tác thất bại')
     }
-  }
-
-  const selectedStatus = returnDetail?.status ?? 'PENDING'
-
-  const statusActions: Record<string, React.ReactNode> = {
-    PENDING: (
-      <Space>
-        <Button
-          type="primary"
-          icon={<CheckCircleOutlined />}
-          onClick={() => handleAction('approve', selectedId!)}
-          style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-        >
-          Duyệt
-        </Button>
-        <Popconfirm
-          title="Từ chối yêu cầu?"
-          description={
-            <Input.TextArea
-              rows={2}
-              placeholder="Lý do từ chối..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-            />
-          }
-          okText="Từ chối"
-          okButtonProps={{ danger: true }}
-          onConfirm={() => handleAction('reject', selectedId!, rejectReason)}
-        >
-          <Button danger icon={<CloseCircleOutlined />}>
-            Từ chối
-          </Button>
-        </Popconfirm>
-      </Space>
-    ),
-    APPROVED: (
-      <Button
-        type="primary"
-        icon={<SyncOutlined />}
-        onClick={() => handleAction('receive', selectedId!)}
-      >
-        Đã nhận hàng trả
-      </Button>
-    ),
-    RECEIVED: (
-      <Button
-        type="primary"
-        icon={<CheckCircleOutlined />}
-        onClick={() => handleAction('complete', selectedId!)}
-        style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-      >
-        Hoàn tiền
-      </Button>
-    ),
   }
 
   const columns: ColumnsType<ReturnRequestPojo> = [
@@ -231,7 +165,7 @@ const ReturnListView: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 130,
+      width: 150,
       render: (status: string) => {
         const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
@@ -240,10 +174,74 @@ const ReturnListView: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 80,
-      render: (_: unknown, record: ReturnRequestPojo) => (
-        <Button type="text" icon={<EyeOutlined />} onClick={() => handleView(record)} />
-      ),
+      width: 160,
+      fixed: 'right',
+      render: (_: unknown, record: ReturnRequestPojo) => {
+        const status = record.status ?? 'PENDING'
+        return (
+          <Space size={4}>
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => router.push(`/returns/${record.id}`)}
+              title="Xem chi tiết"
+            />
+            {/* Inline status actions */}
+            {status === 'PENDING' && (
+              <>
+                <Button
+                  type="text"
+                  icon={<CheckCircleOutlined />}
+                  style={{ color: '#52c41a' }}
+                  onClick={() => handleAction('approve', record.id!)}
+                  title="Duyệt"
+                />
+                <Popconfirm
+                  title="Từ chối yêu cầu?"
+                  description={
+                    <Input.TextArea
+                      rows={2}
+                      placeholder="Lý do từ chối..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                  }
+                  okText="Từ chối"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => {
+                    handleAction('reject', record.id!, rejectReason)
+                    setRejectReason('')
+                  }}
+                >
+                  <Button
+                    type="text"
+                    icon={<CloseCircleOutlined />}
+                    danger
+                    title="Từ chối"
+                  />
+                </Popconfirm>
+              </>
+            )}
+            {status === 'APPROVED' && (
+              <Button
+                type="text"
+                icon={<SyncOutlined />}
+                onClick={() => handleAction('receive', record.id!)}
+                title="Đã nhận hàng trả"
+              />
+            )}
+            {status === 'RECEIVED' && (
+              <Button
+                type="text"
+                icon={<CheckCircleOutlined />}
+                style={{ color: '#52c41a' }}
+                onClick={() => handleAction('complete', record.id!)}
+                title="Hoàn tiền"
+              />
+            )}
+          </Space>
+        )
+      },
     },
   ]
 
@@ -290,7 +288,7 @@ const ReturnListView: React.FC = () => {
         columns={columns}
         dataSource={data?.data ?? []}
         loading={isLoading}
-        scroll={{ x: 900 }}
+        scroll={{ x: 1000 }}
         pagination={{
           current: queryParams.page ?? 1,
           pageSize: queryParams.size ?? 20,
@@ -300,85 +298,6 @@ const ReturnListView: React.FC = () => {
           onChange: handleTableChange,
         }}
       />
-
-      {/* Detail Modal */}
-      <Modal
-        title={`Chi tiết yêu cầu trả hàng #${selectedId}`}
-        open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
-        width={640}
-        footer={
-          statusActions[selectedStatus] ? (
-            <Space>{statusActions[selectedStatus]}</Space>
-          ) : (
-            <Button onClick={() => setDetailOpen(false)}>Đóng</Button>
-          )
-        }
-      >
-        {returnDetail && (
-          <>
-            {/* Status */}
-            <div style={{ marginBottom: 16 }}>
-              <Space>
-                <Tag
-                  color={STATUS_CONFIG[returnDetail.status ?? 'PENDING']?.color}
-                  style={{ fontSize: 13, padding: '2px 10px' }}
-                >
-                  {STATUS_CONFIG[returnDetail.status ?? 'PENDING']?.label}
-                </Tag>
-                <Text type="secondary">
-                  Ngày: {returnDetail.date ? dayjs(returnDetail.date).format('DD/MM/YYYY HH:mm') : '—'}
-                </Text>
-              </Space>
-            </div>
-
-            <Descriptions column={2} bordered size="small" title="Thông tin chung">
-              <Descriptions.Item label="Mã đơn hàng">
-                {returnDetail.orderId ? <Text code>#{returnDetail.orderId}</Text> : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Phương thức hoàn">
-                {returnDetail.refundMethod ?? '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Số tiền hoàn">
-                <Text strong style={{ color: '#52c41a' }}>
-                  {formatVND(returnDetail.refundAmount)}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Mã vận đơn">
-                {returnDetail.trackingNumber ?? '—'}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions column={1} bordered size="small" style={{ marginTop: 12 }}>
-              <Descriptions.Item label="Lý do">{returnDetail.reason ?? '—'}</Descriptions.Item>
-              {returnDetail.adminNotes && (
-                <Descriptions.Item label="Ghi chú admin">
-                  {returnDetail.adminNotes}
-                </Descriptions.Item>
-              )}
-            </Descriptions>
-
-            {/* Items */}
-            <Divider orientation="left">Sản phẩm trả</Divider>
-            <Table
-              dataSource={returnDetail.items ?? []}
-              rowKey="id"
-              pagination={false}
-              size="small"
-              columns={[
-                { title: 'Sản phẩm', dataIndex: 'id', render: (id: number) => `Sản phẩm #${id}` },
-                { title: 'Số lượng', dataIndex: 'quantity', align: 'center' as const },
-                {
-                  title: 'Giá trị',
-                  dataIndex: 'returnPrice',
-                  align: 'right' as const,
-                  render: (v: number) => formatVND(v),
-                },
-              ]}
-            />
-          </>
-        )}
-      </Modal>
     </>
   )
 }

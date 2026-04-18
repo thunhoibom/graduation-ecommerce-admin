@@ -16,14 +16,15 @@ appApiIns.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Skip auth header for public endpoints
     const isPublicRequest =
-      config.url?.includes('/auth/login') ||
-      config.url?.includes('/auth/register') ||
-      config.url?.includes('/public/')
+      config.url?.includes('/api/public/auth/login') ||
+      config.url?.includes('/api/public/auth/register') ||
+      config.url?.includes('/api/public/')
 
     if (!isPublicRequest) {
       const accessToken = localStorage.getItem('accessToken')
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`
+      } else {
       }
     }
     return config
@@ -43,8 +44,8 @@ appApiIns.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     const isAuthRequest =
-      originalRequest?.url?.includes('/auth/login') ||
-      originalRequest?.url?.includes('/auth/refresh')
+      originalRequest?.url?.includes('/api/public/auth/login') ||
+      originalRequest?.url?.includes('/api/public/auth/refresh')
 
     // 401 on non-auth request → session expired
     if (error.response?.status === 401 && originalRequest && !isAuthRequest && !originalRequest._retry) {
@@ -65,7 +66,7 @@ appApiIns.interceptors.response.use(
             },
           },
           onOk: async () => {
-            const { authService } = await import('../auth/authService')
+            const { authService } = await import('./auth/authService')
             authService.clearSession()
             window.location.href = '/login'
           },

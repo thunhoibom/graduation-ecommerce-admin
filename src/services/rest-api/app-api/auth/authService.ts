@@ -11,6 +11,10 @@ export interface LoginResponse {
   user?: UserInfo
 }
 
+interface BackendLoginResponse {
+  token: string
+}
+
 export interface TokenRefreshResponse {
   accessToken: string
 }
@@ -24,15 +28,16 @@ export const authService = {
    * Backend returns { token: "..." } with the JWT in the response body.
    * The auth filter in the backend also sets token as HttpOnly cookie.
    */
-  async login(request: { username: string; password: string }): Promise<LoginResponse> {
-    const data = await authServiceInstance.post<LoginResponse>('/login', request)
-
-    if (data.accessToken) {
-      localStorage.setItem(AUTH_KEY, data.accessToken)
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user ?? { username: request.username }))
+  async login(request: { name: string; password: string }): Promise<LoginResponse> {
+    // Backend trả raw string "Bearer <token>" — không phải JSON
+    const raw = await authServiceInstance.post<string>('/login', request)
+    const accessToken = raw.replace(/^Bearer\s+/i, '')
+    if (accessToken) {
+      localStorage.setItem(AUTH_KEY, accessToken)
+      localStorage.setItem(USER_KEY, JSON.stringify({ username: request.name }))
     }
 
-    return data
+    return { accessToken, user: { username: request.name, email: '', roles: [] } }
   },
 
   /**

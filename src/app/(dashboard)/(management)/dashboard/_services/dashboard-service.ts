@@ -1,4 +1,4 @@
-import { appApiIns } from '../../../../services/rest-api/app-api/api-instance'
+import { appApiIns } from '../../../../../services/rest-api/app-api/api-instance'
 import { AdminDashboardStatsPojo } from '../../types'
 
 const BASE = '/api/admin/dashboard'

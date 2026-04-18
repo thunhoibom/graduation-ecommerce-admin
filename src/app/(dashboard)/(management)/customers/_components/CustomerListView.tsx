@@ -1,21 +1,18 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  Table, Card, Typography, Row, Col, Button, Input, Tag,
-  Modal, Descriptions, Divider, Space, message, Drawer,
+  Table, Card, Typography, Row, Col, Button, Input, Space, message,
 } from 'antd'
 import {
   SearchOutlined, EyeOutlined, MailOutlined, PhoneOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
-import 'dayjs/locale/vi'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
   searchCustomers,
-  getCustomerById,
   type CustomerPojo,
   type CustomerSearchParams,
 } from '@/services/rest-api/app-api/customers/customer-service'
@@ -26,15 +23,14 @@ const { Title, Text } = Typography
 // ── CustomerListView ────────────────────────────────────────────
 
 const CustomerListView: React.FC = () => {
+  const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<CustomerSearchParams>>({
     page: 1,
     size: 20,
   })
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
 
-  const { data, isLoading, mutate } = useAxiosSWR<{
+  const { data, isLoading } = useAxiosSWR<{
     data: CustomerPojo[]
     totalElements: number
   }>(
@@ -62,17 +58,6 @@ const CustomerListView: React.FC = () => {
       page: 1,
     }))
   }, [])
-
-  const handleViewDetail = useCallback(async (record: CustomerPojo) => {
-    setSelectedId(record.id!)
-    setDetailOpen(true)
-  }, [])
-
-  const { data: customer } = useAxiosSWR<CustomerPojo>(
-    detailOpen && selectedId ? [SWR_KEYS.CUSTOMER_DETAIL, selectedId] : null,
-    detailOpen && selectedId ? async () => getCustomerById(selectedId) : null,
-    { revalidateOnMount: true },
-  )
 
   const columns: ColumnsType<CustomerPojo> = [
     {
@@ -134,7 +119,8 @@ const CustomerListView: React.FC = () => {
         <Button
           type="text"
           icon={<EyeOutlined />}
-          onClick={() => handleViewDetail(record)}
+          onClick={() => router.push(`/customers/${record.id}`)}
+          title="Xem chi tiết"
         />
       ),
     },
@@ -181,30 +167,6 @@ const CustomerListView: React.FC = () => {
           onChange: handleTableChange,
         }}
       />
-
-      {/* Customer Detail Drawer */}
-      <Drawer
-        title={`Khách hàng #${selectedId}`}
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        width={500}
-      >
-        {customer && (
-          <>
-            <Descriptions column={1} bordered size="small" title="Thông tin cá nhân">
-              <Descriptions.Item label="Họ">{customer.firstName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Tên">{customer.lastName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Email">{customer.email}</Descriptions.Item>
-              <Descriptions.Item label="SĐT 1">{customer.phone1 ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="SĐT 2">{customer.phone2 ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="CMND/CCCD">{customer.idNumber ?? '—'}</Descriptions.Item>
-            </Descriptions>
-
-            <Divider>Địa chỉ giao hàng</Divider>
-            <Text type="secondary">Tính năng đang phát triển</Text>
-          </>
-        )}
-      </Drawer>
     </>
   )
 }

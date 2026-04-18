@@ -59,9 +59,11 @@ const generateMessage = ({
       return 'Yêu cầu không hợp lệ.'
     case 401:
       return 'errors.api.session_expired'
+    case 403:
+      return serverErrorMsg || 'Không có quyền truy cập. Vui lòng đăng nhập lại.'
     case 500:
       return 'errors.api.server_error'
     default:
-      return 'Có lỗi xảy ra. Vui lòng thử lại sau'
+      return serverErrorMsg || 'Có lỗi xảy ra. Vui lòng thử lại sau'
   }
 }
