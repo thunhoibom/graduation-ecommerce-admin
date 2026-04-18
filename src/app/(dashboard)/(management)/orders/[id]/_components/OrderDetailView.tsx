@@ -137,10 +137,12 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
         <div>
           <Text strong>{record.product?.name ?? '—'}</Text>
           {record.product?.barcode && (
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.product.barcode}
-            </Text>
+            <>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.product.barcode}
+              </Text>
+            </>
           )}
         </div>
       ),
