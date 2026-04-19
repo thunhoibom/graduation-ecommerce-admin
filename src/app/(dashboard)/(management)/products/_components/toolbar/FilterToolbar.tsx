@@ -3,11 +3,10 @@
 import React, { useCallback } from 'react'
 import { Input, Select, Button, Space, Row, Col } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
-import type { ProductSearchParams } from '../../_types'
 
 interface FilterToolbarProps {
-  params: Partial<ProductSearchParams>
-  onChange: (params: Partial<ProductSearchParams>) => void
+  params: Record<string, string | undefined>
+  onChange: (params: Record<string, string | undefined>) => void
   categories: { code: string; name: string }[]
   onAddNew: () => void
 }
@@ -40,7 +39,7 @@ const FilterToolbar: React.FC<FilterToolbarProps> = ({
             placeholder="Tìm theo tên, barcode..."
             allowClear
             enterButton={<SearchOutlined />}
-            defaultValue={params.name}
+            defaultValue={params.name ?? ''}
             onSearch={handleSearch}
             onChange={(e) => {
               if (!e.target.value) {
@@ -57,6 +56,7 @@ const FilterToolbar: React.FC<FilterToolbarProps> = ({
             showSearch
             optionFilterProp="label"
             style={{ width: '100%' }}
+            value={params.categoryCode}
             options={categories.map((c) => ({
               label: c.name,
               value: c.code,

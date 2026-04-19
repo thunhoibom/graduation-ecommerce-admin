@@ -55,6 +55,16 @@ export type ProductVariantPojo = {
   createdAt?: string
 }
 
+export type PageResponse<T> = {
+  success: boolean
+  message?: string
+  data: T
+  totalElements: number
+  totalPages: number
+  currentPage: number
+  pageSize: number
+}
+
 export type ProductSearchParams = {
   name?: string
   barcode?: string
@@ -75,22 +85,12 @@ export type VariantSearchParams = {
   color?: string
   active?: boolean
   page?: number
-  size?: number
+  pageSize?: number
 }
 
 // ─────────────────────────────────────────────────────────────────
 // Product APIs
 // ─────────────────────────────────────────────────────────────────
-
-export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
-  pageSize: number
-}
 
 export const searchProducts = (params: ProductSearchParams) => {
   return productService.get<PageResponse<ProductPojo[]>>('', { params })

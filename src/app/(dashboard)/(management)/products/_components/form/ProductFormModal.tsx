@@ -20,8 +20,8 @@ import {
   updateProduct,
   type ProductPojo,
   type ProductCategoryPojo,
+  type PageResponse,
 } from '@/services/rest-api/app-api/products/product-service'
-import { PageResponse } from '@/types/common'
 
 interface ProductFormModalProps {
   open: boolean
@@ -153,7 +153,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                     }
                     parser={(value) =>
-                      Number(value?.replace(/,/g, '') ?? 0) as unknown as string
+                      String(Number(value?.replace(/,/g, '') || 0))
                     }
                     placeholder="0"
                   />

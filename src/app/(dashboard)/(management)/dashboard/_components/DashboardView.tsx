@@ -90,7 +90,7 @@ const DashboardView: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await dashboardService.getStats(from, to)
+      const data = await dashboardService.getStats({ from, to })
       setStats(data)
     } catch (err: any) {
       setError(err?.message || 'Không thể tải dữ liệu dashboard')

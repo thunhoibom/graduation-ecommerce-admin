@@ -1,7 +1,6 @@
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
-import type { PageResponse } from '@/types/common'
-import { searchProducts, type ProductSearchParams, type ProductPojo } from '@/services/rest-api/app-api/products/product-service'
+import { searchProducts, type ProductSearchParams, type ProductPojo, type PageResponse } from '@/services/rest-api/app-api/products/product-service'
 import { useTableFetchingParams } from './use-table-fetching-params'
 
 export type DefaultProductParams = {
@@ -16,11 +15,11 @@ export const DEFAULT_PRODUCT_PARAMS: Partial<DefaultProductParams> = {
 
 export const useFetchProducts = (enabled: boolean = true) => {
   const { queryParams, tableFetchingParams, setTableFetchingParams } =
-    useTableFetchingParams<ProductSearchParams>(DEFAULT_PRODUCT_PARAMS)
+    useTableFetchingParams<Record<string, string | undefined>>(DEFAULT_PRODUCT_PARAMS)
 
   const { data, isLoading, mutate } = useAxiosSWR<PageResponse<ProductPojo[]>>(
     enabled ? [SWR_KEYS.PRODUCT_LIST, queryParams] : null,
-    async () => searchProducts(queryParams ?? {}),
+    async () => searchProducts(queryParams as unknown as ProductSearchParams),
     { revalidateOnMount: true },
   )
 

@@ -13,8 +13,8 @@ import {
   updateProduct,
   type ProductPojo,
   type ProductCategoryPojo,
+  type PageResponse,
 } from '@/services/rest-api/app-api/products/product-service'
-import { PageResponse } from '@/types/common'
 import FilterToolbar from '../toolbar/FilterToolbar'
 import DataTable from '../table/DataTable'
 import ProductFormModal from '../form/ProductFormModal'

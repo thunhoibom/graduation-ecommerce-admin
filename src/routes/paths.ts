@@ -19,8 +19,7 @@ export const paths = {
     root: '/products',
     list: '/products/list',
     new: '/products/new',
-    detail: (id: string) => `/products/${id}/detail`,
-    edit: (id: string) => `/products/${id}/edit`,
+    edit: (id: string) => `/products/${id}`,
     variants: (id: string) => `/products/${id}/variants`,
   },
 
@@ -34,21 +33,23 @@ export const paths = {
   orders: {
     root: '/orders',
     list: '/orders/list',
-    detail: (id: string) => `/orders/${id}/detail`,
+    detail: (id: string) => `/orders/${id}`,
+    new: '/orders/new',
+    editStatus: (id: string) => `/orders/${id}/edit-status`,
   },
 
   // Returns
   returns: {
     root: '/returns',
     list: '/returns/list',
-    detail: (id: string) => `/returns/${id}/detail`,
+    detail: (id: string) => `/returns/${id}`,
   },
 
   // Customers
   customers: {
     root: '/customers',
     list: '/customers/list',
-    detail: (id: string) => `/customers/${id}/detail`,
+    detail: (id: string) => `/customers/${id}`,
   },
 
   // Discount Codes
@@ -56,7 +57,7 @@ export const paths = {
     root: '/discounts',
     list: '/discounts/list',
     new: '/discounts/new',
-    edit: (id: string) => `/discounts/${id}/edit`,
+    edit: (id: string) => `/discounts/${id}`,
   },
 
   // Shipping

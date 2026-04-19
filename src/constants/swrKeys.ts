@@ -13,6 +13,8 @@ export const SWR_KEYS = {
   CUSTOMER_LIST: 'customers/list',
   CUSTOMER_DETAIL: 'customers/detail',
   DISCOUNT_LIST: 'discounts/list',
+  DISCOUNT_DETAIL: 'discounts/detail',
+  PARAMS_BY_CATEGORY: 'settings/params-by-category',
   RETURN_LIST: 'returns/list',
   RETURN_DETAIL: 'returns/detail',
   SHIPPING_LIST: 'shipping/list',

@@ -116,8 +116,8 @@ const CategoryListView: React.FC = () => {
           </Space>
         ),
         children: item.children?.length ? toAntTreeNodes(item.children) : undefined,
-        icon: ({ expanded }: { expanded: boolean }) =>
-          expanded ? <FolderOpenOutlined /> : <FolderOutlined />,
+        icon: ((props: { expanded?: boolean }) =>
+          props.expanded ? <FolderOpenOutlined /> : <FolderOutlined />) as React.ReactNode,
       }))
 
     return toAntTreeNodes(filtered)

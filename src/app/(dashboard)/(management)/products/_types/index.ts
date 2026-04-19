@@ -6,6 +6,4 @@ export type {
   VariantSearchParams,
 } from '@/services/rest-api/app-api/products/product-service'
 
-export type {
-  PageResponse,
-} from '@/types/common'
+export type { PageResponse } from '@/services/rest-api/app-api/products/product-service'

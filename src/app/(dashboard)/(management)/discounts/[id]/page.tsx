@@ -2,14 +2,19 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import DiscountFormPage from '../_components/DiscountFormPage'
 
-export const metadata: Metadata = {
-  title: 'Thêm mã giảm giá | Mono Studio Admin',
+interface Props {
+  params: Promise<{ id: string }>
 }
 
-export default function NewDiscountPage() {
+export const metadata: Metadata = {
+  title: 'Sửa mã giảm giá | Mono Studio Admin',
+}
+
+export default async function EditDiscountPage({ params }: Props) {
+  const { id } = await params
   return (
     <Suspense fallback={<div style={{ padding: 24 }}>Đang tải...</div>}>
-      <DiscountFormPage />
+      <DiscountFormPage discountId={id} />
     </Suspense>
   )
 }

@@ -21,7 +21,7 @@ export type ParamSearchParams = {
   size?: number
 }
 
-export type PageResponse<T> = {
+type PageResponse<T> = {
   success: boolean
   message?: string
   data: T

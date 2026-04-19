@@ -14,8 +14,8 @@ import {
   updateProduct,
   type ProductPojo,
   type ProductCategoryPojo,
+  type PageResponse,
 } from '@/services/rest-api/app-api/products/product-service'
-import { PageResponse } from '@/types/common'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -179,7 +179,7 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
                           `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                         }
                         parser={(value) =>
-                          Number(value?.replace(/,/g, '') ?? 0) as unknown as string
+                          String(Number(value?.replace(/,/g, '') || 0))
                         }
                         placeholder="0"
                       />

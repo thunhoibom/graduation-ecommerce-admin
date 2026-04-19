@@ -8,7 +8,7 @@ import {
 } from 'antd'
 import {
   SearchOutlined, DeleteOutlined, EditOutlined, PlusOutlined,
-  EyeOutlined, GridOutlined, TableOutlined, LinkOutlined,
+  EyeOutlined, AppstoreOutlined, TableOutlined, LinkOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
