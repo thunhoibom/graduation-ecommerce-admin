@@ -68,14 +68,14 @@ const CategoryListView: React.FC = () => {
 
   const { data, isLoading, mutate } = useAxiosSWR<{
     data: CategoryPojo[]
-    totalElements: number
+    totalCount: number
   }>(
     [SWR_KEYS.CATEGORY_LIST, queryParams],
     async () => {
       const res = await searchCategories(queryParams)
       return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
+        data: res.items ?? [],
+        totalCount: res.totalCount ?? 0,
       }
     },
     { revalidateOnMount: true },
@@ -117,7 +117,7 @@ const CategoryListView: React.FC = () => {
         ),
         children: item.children?.length ? toAntTreeNodes(item.children) : undefined,
         icon: ((props: { expanded?: boolean }) =>
-          props.expanded ? <FolderOpenOutlined /> : <FolderOutlined />) as React.ReactNode,
+          props.expanded ? <FolderOpenOutlined /> : <FolderOutlined />) as unknown as React.ReactNode,
       }))
 
     return toAntTreeNodes(filtered)
@@ -290,7 +290,7 @@ const CategoryListView: React.FC = () => {
         onCancel={() => setFormOpen(false)}
         confirmLoading={submitting}
         okText={editingCategory ? 'Lưu thay đổi' : 'Tạo mới'}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 16 }}>
           <Form.Item

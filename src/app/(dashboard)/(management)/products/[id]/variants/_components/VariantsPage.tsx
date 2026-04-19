@@ -5,23 +5,26 @@ import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Table, Tag, Button, Space, Modal, Form,
   Input, InputNumber, Select, Breadcrumb, Spin, message,
-  Popconfirm, Row, Col, Switch,
+  Popconfirm, Row, Col, Switch, Upload, Image as AntdImage
 } from 'antd'
 import {
   ArrowLeftOutlined, PlusOutlined, EditOutlined,
   DeleteOutlined, SearchOutlined, CheckCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { UploadFile, UploadProps } from 'antd'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
+import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 import {
   searchVariants,
   createVariant,
   updateVariant,
   deleteVariant,
   getProductById,
-  type ProductVariantPojo,
   type ProductPojo,
+  type ProductVariantPojo,
+  type ImagePojo,
   type PageResponse as VariantPageResponse,
 } from '@/services/rest-api/app-api/products/product-service'
 
@@ -61,6 +64,8 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState({ page: 1, size: 100 })
   const [searchText, setSearchText] = useState('')
+  const [fileList, setFileList] = useState<UploadFile[]>([])
+
 
   // Load product info
   const { data: product } = useAxiosSWR<ProductPojo>(
@@ -71,17 +76,27 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
 
   // Load variants
   const { data: variantsData, isLoading, mutate } = useAxiosSWR<VariantPageResponse<ProductVariantPojo[]>>(
-    product?.barcode ? ['product-variants', productId, queryParams] : null,
+    product?.barcode ? ['product-variants', product.barcode, queryParams] : null,
     product?.barcode
       ? async () => searchVariants({
           productBarcode: product.barcode,
-          ...queryParams,
-        } as never)
+          pageIndex: queryParams.page - 1, // Convert 1-indexed UI page to 0-indexed API page
+          pageSize: queryParams.size,
+        })
       : null,
     { revalidateOnMount: true },
   )
 
-  const allVariants = variantsData?.data ?? []
+
+  const allVariants = variantsData?.items ?? []
+  
+  // Debug log
+  console.log('[DEBUG] Product Info:', {
+    productId,
+    barcodeFromProduct: product?.barcode,
+    variantsCount: allVariants.length
+  });
+
 
   // Form modal state
   const [formOpen, setFormOpen] = useState(false)
@@ -93,6 +108,7 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
 
   const handleAdd = useCallback(() => {
     setEditingVariant(null)
+    setFileList([])
     form.resetFields()
     form.setFieldsValue({ active: true, priceModifier: 0, currentStock: 0, criticalStock: 0 })
     setFormOpen(true)
@@ -100,6 +116,17 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
 
   const handleEdit = useCallback((record: ProductVariantPojo) => {
     setEditingVariant(record)
+    
+    // Set file list from variant images
+    const images = record.images ?? []
+    setFileList(images.map((img, idx) => ({
+      uid: img.code ?? String(idx),
+      name: img.filename ?? 'image',
+      status: 'done',
+      url: img.url,
+      response: img,
+    })))
+
     form.setFieldsValue({
       sku: record.sku,
       size: record.size,
@@ -114,6 +141,22 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
     setFormOpen(true)
   }, [form])
 
+  const handleUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh thất bại')
+    }
+  }
+
+  const handleChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
+    setFileList(newFileList)
+  }
+
+
   const handleDelete = useCallback(async (record: ProductVariantPojo) => {
     try {
       if (record.id) await deleteVariant(record.id)
@@ -127,13 +170,28 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
   const handleFormSubmit = async (values: VariantFormData) => {
     setSubmitting(true)
     try {
+      // Extract images from fileList
+      const imagePojos = fileList
+        .filter(file => file.status === 'done')
+        .map(file => file.response as ImagePojo)
+
       const payload: ProductVariantPojo = {
-        ...values,
+        sku: values.sku ?? '',
+        size: values.size ?? '',
+        color: values.color,
+        attributes: values.attributes,
+        priceModifier: values.priceModifier,
+        currentStock: values.currentStock,
+        criticalStock: values.criticalStock,
+        active: values.active,
+        barcode: values.barcode,
         productBarcode: product!.barcode,
         productName: product!.name,
         productBasePrice: product!.price,
         finalPrice: product!.price + (values.priceModifier ?? 0),
+        images: imagePojos,
       }
+
 
       if (editingVariant?.id) {
         await updateVariant(editingVariant.id, payload)
@@ -153,7 +211,7 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
 
   // Filtered variants for display
   const filteredVariants = searchText
-    ? allVariants.filter((v) =>
+    ? allVariants.filter((v: ProductVariantPojo) =>
         (v.sku ?? '').toLowerCase().includes(searchText.toLowerCase()) ||
         (v.size ?? '').toLowerCase().includes(searchText.toLowerCase()) ||
         (v.color ?? '').toLowerCase().includes(searchText.toLowerCase()),
@@ -164,12 +222,37 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
 
   const columns: ColumnsType<ProductVariantPojo> = [
     {
+      title: 'Ảnh',
+      key: 'image',
+      width: 70,
+      render: (_: unknown, record: ProductVariantPojo) => {
+        const url = record.primaryImageUrl || record.images?.[0]?.url
+        return url ? (
+          <AntdImage
+            src={url}
+            width={48}
+            height={48}
+            style={{ objectFit: 'cover', borderRadius: 4 }}
+          />
+        ) : <div style={{ width: 48, height: 48, backgroundColor: '#f5f5f5', borderRadius: 4 }} />
+      }
+    },
+    {
       title: 'SKU',
+
       dataIndex: 'sku',
       key: 'sku',
       width: 140,
       render: (s: string) => s ? <Text code style={{ fontSize: 12 }}>{s}</Text> : <Text type="secondary">—</Text>,
     },
+    {
+      title: 'Barcode',
+      dataIndex: 'barcode',
+      key: 'barcode',
+      width: 140,
+      render: (b: string) => b ? <Text style={{ fontSize: 12 }}>{b}</Text> : <Text type="secondary">—</Text>,
+    },
+
     {
       title: 'Size',
       dataIndex: 'size',
@@ -365,7 +448,25 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
           initialValues={{ active: true, priceModifier: 0 }}
           style={{ marginTop: 16 }}
         >
+          <Form.Item label="Hình ảnh biến thể">
+            <Upload
+              listType="picture-card"
+              fileList={fileList}
+              customRequest={handleUpload}
+              onChange={handleChange}
+              multiple
+            >
+              {fileList.length >= 5 ? null : (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Upload</div>
+                </div>
+              )}
+            </Upload>
+          </Form.Item>
+
           <Row gutter={12}>
+
             <Col span={12}>
               <Form.Item name="sku" label="SKU" rules={[{ required: true, message: 'Nhập SKU' }]}>
                 <Input placeholder="VD: SP001-XL-RED" />

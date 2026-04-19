@@ -348,7 +348,7 @@ const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
 
             {/* Quick templates */}
             <Card title="Mẫu nhanh" size="small" style={{ marginBottom: 16 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Button
                   block
                   size="small"
@@ -391,7 +391,7 @@ const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
             </Card>
 
             {/* Actions */}
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
               <Button
                 type="primary"
                 htmlType="submit"

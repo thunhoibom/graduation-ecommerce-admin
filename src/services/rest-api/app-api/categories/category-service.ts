@@ -21,12 +21,9 @@ export type CategorySearchParams = {
 }
 
 export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 

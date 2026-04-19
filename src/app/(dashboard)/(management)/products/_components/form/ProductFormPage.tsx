@@ -178,9 +178,10 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
                         formatter={(value) =>
                           `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                         }
-                        parser={(value) =>
-                          String(Number(value?.replace(/,/g, '') || 0))
-                        }
+                        parser={(value) => {
+                          const n = Number(value?.replace(/,/g, '') || 0)
+                          return (Number.isNaN(n) ? 0 : n) as 0
+                        }}
                         placeholder="0"
                       />
                     </Form.Item>
@@ -205,7 +206,7 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
               </Card>
 
               {/* Actions */}
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Button
                   type="primary"
                   htmlType="submit"

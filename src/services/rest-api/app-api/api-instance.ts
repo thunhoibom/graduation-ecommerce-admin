@@ -73,7 +73,7 @@ appApiIns.interceptors.response.use(
         })
       }
       // "Freeze" request — prevent UI from showing additional error messages
-      return new Promise(() => {})
+      return new Promise(() => { })
     }
 
     // Business error from backend

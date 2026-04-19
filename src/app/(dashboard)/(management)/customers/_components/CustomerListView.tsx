@@ -91,7 +91,7 @@ const CustomerListView: React.FC = () => {
       key: 'phone',
       width: 150,
       render: (_: unknown, record: CustomerPojo) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           {record.phone1 && (
             <Text>
               <PhoneOutlined style={{ marginRight: 4 }} />

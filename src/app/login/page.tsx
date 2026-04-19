@@ -49,7 +49,7 @@ export default function LoginPage() {
         styles={{ body: { padding: '40px 36px' } }}
       >
         {/* Logo & Branding */}
-        <Space direction="vertical" size={8} style={{ width: '100%', marginBottom: 32 }}>
+        <Space orientation="vertical" size={8} style={{ width: '100%', marginBottom: 32 }}>
           <div style={{ textAlign: 'center' }}>
             <div
               style={{

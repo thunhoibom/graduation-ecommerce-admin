@@ -17,6 +17,9 @@ const theme = {
 
 const swrConfig = {
     revalidateOnFocus: false,
+    revalidateIfStale: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 0,
 }
 
 const AntdProvider = ({ children }: { children: React.ReactNode }) => {

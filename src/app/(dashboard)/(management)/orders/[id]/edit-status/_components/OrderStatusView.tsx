@@ -223,7 +223,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                       showIcon
                       style={{ marginBottom: 16 }}
                     />
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space orientation="vertical" style={{ width: '100%' }}>
                       <Space>
                         <Button
                           type="primary"

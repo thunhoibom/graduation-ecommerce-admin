@@ -50,26 +50,38 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
     { revalidateOnMount: true },
   )
 
-  const { data: variantsData } = useAxiosSWR<VariantPageResponse<ProductVariantPojo[]>>(
-    productId ? ['product-variants', productId] : null,
-    productId
-      ? async () => searchVariants({ productBarcode: product?.barcode, size: 100 } as never)
+  const { data: variantsData } = useAxiosSWR<any>(
+    product?.barcode ? ['product-variants', product.barcode] : null,
+    product?.barcode
+      ? async () => searchVariants({ productBarcode: product.barcode, pageSize: 100 })
       : null,
     { revalidateOnMount: true },
   )
 
+
+  // Safe way to get items from variantsData (handling both 'items' and 'data' structures)
+  const variants = variantsData?.items ?? variantsData?.data ?? []
+
   if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: 80 }}>
-        <Spin size="large" />
+        <Spin size="large" tip="Đang tải thông tin sản phẩm...">
+          <div style={{ padding: 50 }} />
+        </Spin>
       </div>
     )
   }
 
+
   if (!product) {
     return (
       <div style={{ textAlign: 'center', padding: 80 }}>
-        <Text type="secondary">Không tìm thấy sản phẩm</Text>
+        <Card>
+          <Text type="secondary">Không tìm thấy sản phẩm hoặc có lỗi xảy ra.</Text>
+          <div style={{ marginTop: 16 }}>
+            <Button onClick={() => router.push('/products/list')}>Quay lại danh sách</Button>
+          </div>
+        </Card>
       </div>
     )
   }
@@ -230,7 +242,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
 
           {/* Variants */}
           <Card
-            title={`Biến thể (${variantsData?.data?.length ?? 0})`}
+            title={`Biến thể (${variants.length})`}
             extra={
               <Button
                 size="small"
@@ -242,7 +254,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
             }
             style={{ marginBottom: 16 }}
           >
-            {(!variantsData?.data || variantsData.data.length === 0) ? (
+            {variants.length === 0 ? (
               <Alert
                 type="info"
                 message="Sản phẩm chưa có biến thể nào."
@@ -250,7 +262,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
               />
             ) : (
               <Table
-                dataSource={variantsData.data}
+                dataSource={variants}
                 rowKey="id"
                 columns={variantColumns}
                 pagination={false}
@@ -264,27 +276,34 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
           {product.images && product.images.length > 0 && (
             <Card title="Hình ảnh sản phẩm">
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {product.images.map((img, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      width: 120,
-                      height: 120,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      border: '1px solid #f0f0f0',
-                    }}
-                  >
-                    <img
-                      src={img.url ?? ''}
-                      alt={img.altText ?? product.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  </div>
-                ))}
+                <Image.PreviewGroup>
+                  {product.images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        width: 120,
+                        height: 120,
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        border: '1px solid #f0f0f0',
+                      }}
+                    >
+                      <Image
+                        src={img.url ?? ''}
+                        alt={img.altText ?? product.name}
+                        width={120}
+                        height={120}
+                        style={{ objectFit: 'cover' }}
+                        fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                      />
+                    </div>
+                  ))}
+                </Image.PreviewGroup>
               </div>
             </Card>
           )}
+
+
         </Col>
 
         {/* ── Right column ── */}
@@ -305,7 +324,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
                 <Statistic
                   title="Tồn kho"
                   value={product.currentStock ?? 0}
-                  valueStyle={{ color: (product.currentStock ?? 0) === 0 ? '#ff4d4f' : '#5856d6' }}
+                  styles={{ content: { color: (product.currentStock ?? 0) === 0 ? '#ff4d4f' : '#5856d6' } }}
                 />
               </Col>
             </Row>
@@ -324,7 +343,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
 
           {/* Actions */}
           <Card title="Thao tác" style={{ marginBottom: 16 }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
               <Button
                 type="primary"
                 icon={<EditOutlined />}

@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react'
 import { Modal, message, Typography, Space } from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
-import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
+import { useAxios } from '@/shared/hooks/use-axios'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
   searchCategories,
@@ -36,12 +36,11 @@ const ProductListView: React.FC = () => {
   } = useFetchProducts()
 
   // Categories
-  const { data: categoryData } = useAxiosSWR<PageResponse<ProductCategoryPojo[]>>(
-    [SWR_KEYS.CATEGORY_LIST, { page: 1, size: 100 }],
+  const { data: categoryData } = useAxios<PageResponse<ProductCategoryPojo[]>>(
     async () => searchCategories({ page: 1, size: 100 }),
-    { revalidateOnMount: true },
+    { enabled: true, deps: [] },
   )
-  const categories = categoryData?.data ?? []
+  const categories = categoryData?.items ?? []
 
   // Form modal state
   const [formOpen, setFormOpen] = useState(false)
@@ -93,7 +92,7 @@ const ProductListView: React.FC = () => {
         title: 'Xác nhận xóa sản phẩm',
         icon: <ExclamationCircleOutlined />,
         content: (
-          <Space direction="vertical" size={4}>
+          <Space orientation="vertical" size={4}>
             <Text>Bạn có chắc muốn xóa sản phẩm này?</Text>
             <Text type="secondary">{record.name}</Text>
           </Space>
@@ -147,7 +146,10 @@ const ProductListView: React.FC = () => {
       {/* Filters */}
       <FilterToolbar
         params={queryParams}
-        onChange={setTableFetchingParams}
+        onChange={(params) => {
+          setTableFetchingParams(params)
+          mutate()
+        }}
         categories={categories}
         onAddNew={handleAddNew}
       />
@@ -159,7 +161,10 @@ const ProductListView: React.FC = () => {
         total={0}
         current={Number(queryParams.page) || 1}
         pageSize={Number(queryParams.size) || 20}
-        onTableChange={handleTableChange}
+        onTableChange={(page, size) => {
+          handleTableChange(page, size)
+          mutate()
+        }}
         onEdit={handleEdit}
         onView={handleView}
         onDelete={handleDelete}

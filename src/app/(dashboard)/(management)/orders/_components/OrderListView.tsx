@@ -85,11 +85,13 @@ const OrderListView: React.FC = () => {
 
   const handleTableChange = useCallback((page: number, size: number) => {
     setQueryParams((prev) => ({ ...prev, page, size }))
-  }, [])
+    mutate()
+  }, [mutate])
 
   const handleFilter = useCallback((key: string, value: string | undefined) => {
     setQueryParams((prev) => ({ ...prev, [key]: value, page: 1 }))
-  }, [])
+    mutate()
+  }, [mutate])
 
   const handleDateRange = useCallback(
     (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
@@ -99,8 +101,9 @@ const OrderListView: React.FC = () => {
         dateTo: dates?.[1]?.format('YYYY-MM-DD'),
         page: 1,
       }))
+      mutate()
     },
-    [],
+    [mutate],
   )
 
   const handleStatusAction = async (

@@ -25,7 +25,7 @@ export const useFetchProducts = (enabled: boolean = true) => {
 
   return {
     data,
-    tableData: enabled ? (data?.data ?? []) : [],
+    tableData: enabled ? (data?.items ?? []) : [],
     isLoading: enabled ? isLoading : false,
     mutate,
     queryParams,

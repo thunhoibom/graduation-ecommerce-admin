@@ -11,7 +11,10 @@ import {
   Col,
   Spin,
   message,
+  Upload,
 } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
+import type { UploadFile, UploadProps } from 'antd'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
@@ -21,7 +24,10 @@ import {
   type ProductPojo,
   type ProductCategoryPojo,
   type PageResponse,
+  type ImagePojo,
 } from '@/services/rest-api/app-api/products/product-service'
+
+import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 
 interface ProductFormModalProps {
   open: boolean
@@ -40,6 +46,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
 }) => {
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
+  const [fileList, setFileList] = React.useState<UploadFile[]>([])
 
   // Load categories
   const { data: categoryData } = useAxiosSWR<PageResponse<ProductCategoryPojo[]>>(
@@ -48,7 +55,8 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
     { revalidateOnMount: true },
   )
 
-  const categories = categoryData?.data ?? []
+  const categories = categoryData?.items ?? []
+
 
   useEffect(() => {
     if (open) {
@@ -61,19 +69,62 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
           currentStock: editing.currentStock,
           criticalStock: editing.criticalStock,
           categoryCode: editing.category?.code,
+          images: editing.images ?? [],
         })
+        // Initialize file list for Upload component
+        setFileList((editing.images ?? []).map((img, idx) => ({
+          uid: img.code ?? String(idx),
+          name: img.filename ?? 'image',
+          status: 'done',
+          url: img.url ?? '',
+          response: img, // Store the full object in response
+        })))
+
       } else {
         form.resetFields()
+        setFileList([])
       }
     }
   }, [open, editing, form])
 
+  const handleUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+      // Update form images value
+      const currentImages = form.getFieldValue('images') ?? []
+      form.setFieldsValue({ images: [...currentImages, result] })
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh thất bại')
+    }
+  }
+
+  const handleRemove = (file: UploadFile) => {
+    const currentImages = form.getFieldValue('images') ?? []
+    const newImages = currentImages.filter((img: any) => img.url !== file.url && img.code !== file.uid)
+    form.setFieldsValue({ images: newImages })
+  }
+
+  const handleChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
+    setFileList(newFileList)
+  }
+
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
+      
+      // Extract ImagePojo objects from the fileList state or form values
+      // We manually manage it so it's safer to use the response objects from fileList
+      const imagePojos = fileList
+        .filter(file => file.status === 'done')
+        .map(file => file.response as ImagePojo)
+
       // Map categoryCode to category object
       const payload = {
         ...values,
+        images: imagePojos,
         category: values.categoryCode
           ? { code: values.categoryCode, name: '' }
           : undefined,
@@ -96,7 +147,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
         okText={editing ? 'Lưu thay đổi' : 'Tạo mới'}
         cancelText="Hủy"
         width={720}
-        destroyOnClose
+        destroyOnHidden
       >
         <Spin spinning={loading}>
           <Form
@@ -104,6 +155,27 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
             layout="vertical"
             style={{ marginTop: 16 }}
           >
+            {/* We don't use 'name' here because we handle the mapping manually in handleOk */}
+            <Form.Item label="Hình ảnh sản phẩm">
+              <Upload
+                listType="picture-card"
+                fileList={fileList}
+                customRequest={handleUpload}
+                onChange={handleChange}
+                onRemove={handleRemove}
+                maxCount={1}
+              >
+
+                {fileList.length >= 1 ? null : (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>Upload</div>
+                  </div>
+                )}
+              </Upload>
+            </Form.Item>
+
+
             <Row gutter={[16, 0]}>
               <Col span={12}>
                 <Form.Item
@@ -152,9 +224,10 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     formatter={(value) =>
                       `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                     }
-                    parser={(value) =>
-                      String(Number(value?.replace(/,/g, '') || 0))
-                    }
+                    parser={(value) => {
+                      const n = Number(value?.replace(/,/g, '') || 0)
+                      return (Number.isNaN(n) ? 0 : n) as 0
+                    }}
                     placeholder="0"
                   />
                 </Form.Item>
@@ -183,5 +256,6 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
     </>
   )
 }
+
 
 export default ProductFormModal

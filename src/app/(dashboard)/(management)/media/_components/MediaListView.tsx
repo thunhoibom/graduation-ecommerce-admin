@@ -66,11 +66,13 @@ const MediaListView: React.FC = () => {
 
   const handleTableChange = useCallback((page: number, size: number) => {
     setQueryParams((prev) => ({ ...prev, page, size }))
-  }, [])
+    mutate()
+  }, [mutate])
 
   const handleSearch = useCallback((value: string) => {
     setQueryParams((prev) => ({ ...prev, code: value || undefined, page: 1 }))
-  }, [])
+    mutate()
+  }, [mutate])
 
   const openCreateModal = () => {
     setEditingImage(null)
@@ -269,7 +271,7 @@ const MediaListView: React.FC = () => {
         </Popconfirm>,
       ]}
     >
-      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={2} style={{ width: '100%' }}>
         <Text code style={{ fontSize: 11 }}>{record.code}</Text>
         <Text type="secondary" style={{ fontSize: 11 }} ellipsis>
           {record.filename}
@@ -290,7 +292,7 @@ const MediaListView: React.FC = () => {
         onCancel={() => setFormOpen(false)}
         confirmLoading={submitting}
         okText={editingImage ? 'Lưu thay đổi' : 'Tạo mới'}
-        destroyOnClose
+        destroyOnHidden
         width={480}
       >
         <Form

@@ -1,9 +1,11 @@
 'use client'
 
 import React, { Suspense, useState } from 'react'
-import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col } from 'antd'
+import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col, Upload, Image as AntdImage } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { UploadFile, UploadProps } from 'antd'
+
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
@@ -16,10 +18,13 @@ import {
   deleteVariant,
   type ProductPojo,
   type ProductVariantPojo,
+  type ImagePojo,
   type VariantSearchParams,
 } from '@/services/rest-api/app-api/products/product-service'
+import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
+
 import AppTable from '@/shared/components/antd/AppTable'
-import { useTableFetchingParamsForVariants, DEFAULT_VARIANT_PARAMS } from '../../_hooks/use-fetch-variants'
+import { useTableFetchingParamsForVariants, DEFAULT_VARIANT_PARAMS, type DefaultVariantParams } from '../../_hooks/use-fetch-variants'
 
 const { Title, Text } = Typography
 
@@ -34,46 +39,77 @@ const formatVND = (value: number | undefined) => {
 
 const VariantManagementView: React.FC = () => {
   const params = useParams()
-  const barcode = params.id as string
+  const productId = params.id as string
   const [messageApi, contextHolder] = message.useMessage()
-
-  const { queryParams, setTableFetchingParams } = useTableFetchingParamsForVariants<VariantSearchParams>({
-    ...DEFAULT_VARIANT_PARAMS,
-    productBarcode: barcode,
-  })
 
   // Load product info
   const { data: product } = useAxiosSWR<ProductPojo>(
-    [SWR_KEYS.PRODUCT_DETAIL, barcode],
-    async () => getProductById(Number(barcode)),
+    [SWR_KEYS.PRODUCT_DETAIL, productId],
+    async () => getProductById(Number(productId)),
     { revalidateOnMount: true },
   )
+
+  const barcode = product?.barcode
+
+  const { queryParams, setTableFetchingParams } = useTableFetchingParamsForVariants<DefaultVariantParams>({
+    ...DEFAULT_VARIANT_PARAMS,
+    productBarcode: barcode || '',
+  })
+
 
   // Load variants
   const { data: variantData, isLoading, mutate } = useAxiosSWR<{
     data: ProductVariantPojo[]
     totalElements: number
   }>(
-    [SWR_KEYS.VARIANT_LIST, barcode, queryParams],
-    async () => {
-      const res = await searchVariants(queryParams as VariantSearchParams)
-      return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
-      }
-    },
+    barcode ? [SWR_KEYS.VARIANT_LIST, barcode, queryParams] : null,
+    barcode
+      ? async () => {
+          // Create string-compatible params for the API
+          const apiParams = {
+            productBarcode: barcode,
+            pageIndex: Number(queryParams.page) - 1,
+            pageSize: queryParams.size,
+          }
+          const res = await searchVariants(apiParams as any)
+          return {
+            data: res.items ?? [],
+            totalElements: res.totalCount ?? 0,
+          }
+        }
+      : null,
     { revalidateOnMount: true },
   )
+
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [editingVariant, setEditingVariant] = useState<ProductVariantPojo | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [fileList, setFileList] = useState<UploadFile[]>([])
   const [form] = Form.useForm()
+
 
   const columns: ColumnsType<ProductVariantPojo> = [
     {
+      title: 'Ảnh',
+      key: 'image',
+      width: 70,
+      render: (_: unknown, record: ProductVariantPojo) => {
+        const url = record.primaryImageUrl || record.images?.[0]?.url
+        return url ? (
+          <AntdImage
+            src={url}
+            width={48}
+            height={48}
+            style={{ objectFit: 'cover', borderRadius: 4 }}
+          />
+        ) : <div style={{ width: 48, height: 48, backgroundColor: '#f5f5f5', borderRadius: 4 }} />
+      }
+    },
+    {
       title: 'SKU',
+
       dataIndex: 'sku',
       key: 'sku',
       width: 150,
@@ -102,7 +138,7 @@ const VariantManagementView: React.FC = () => {
         const base = record.productBasePrice ?? 0
         const modifier = record.priceModifier ?? 0
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Text type="secondary" style={{ fontSize: 11 }}>Giá gốc</Text>
             <Text style={{ color: '#595959' }}>{formatVND(base)}</Text>
           </Space>
@@ -172,6 +208,17 @@ const VariantManagementView: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => {
               setEditingVariant(record)
+              
+              // Set file list from variant images
+              const images = record.images ?? []
+              setFileList(images.map((img, idx) => ({
+                uid: img.code ?? String(idx),
+                name: img.filename ?? 'image',
+                status: 'done',
+                url: img.url,
+                response: img,
+              })))
+
               form.setFieldsValue({
                 sku: record.sku,
                 size: record.size,
@@ -183,6 +230,7 @@ const VariantManagementView: React.FC = () => {
               })
               setModalOpen(true)
             }}
+
           />
           <Button
             type="text"
@@ -214,15 +262,42 @@ const VariantManagementView: React.FC = () => {
 
   const handleAddNew = () => {
     setEditingVariant(null)
+    setFileList([])
     form.resetFields()
     setModalOpen(true)
   }
 
+  const handleUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh thất bại')
+    }
+  }
+
+  const handleChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
+    setFileList(newFileList)
+  }
+
+
   const handleSubmit = async (values: Record<string, unknown>) => {
+    if (!product?.barcode) {
+      messageApi.error('Không tìm thấy mã vạch sản phẩm. Vui lòng tải lại trang.')
+      return
+    }
+
     setSubmitting(true)
     try {
+      // Extract images from fileList
+      const imagePojos = fileList
+        .filter(file => file.status === 'done')
+        .map(file => file.response as ImagePojo)
+
       const payload: ProductVariantPojo = {
-        productBarcode: barcode,
+        productBarcode: product.barcode,
         sku: values.sku as string,
         size: values.size as string,
         color: values.color as string | undefined,
@@ -230,7 +305,10 @@ const VariantManagementView: React.FC = () => {
         currentStock: values.currentStock as number | undefined,
         criticalStock: values.criticalStock as number | undefined,
         active: values.active as boolean | undefined,
+        images: imagePojos,
       }
+
+
       if (editingVariant) {
         await updateVariant(editingVariant.id!, payload)
         messageApi.success('Cập nhật biến thể thành công')
@@ -265,8 +343,9 @@ const VariantManagementView: React.FC = () => {
             Quản lý biến thể
           </Title>
           <Text type="secondary">
-            {product?.name ?? 'Đang tải...'} · Barcode: {barcode}
+            {product?.name ?? 'Đang tải...'} · Barcode: {barcode ?? '...'}
           </Text>
+
         </div>
       </div>
 
@@ -308,7 +387,7 @@ const VariantManagementView: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         confirmLoading={submitting}
         okText={editingVariant ? 'Lưu thay đổi' : 'Tạo mới'}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}
@@ -317,7 +396,26 @@ const VariantManagementView: React.FC = () => {
           initialValues={{ active: true }}
           style={{ marginTop: 16 }}
         >
+          <Form.Item label="Hình ảnh biến thể">
+            <Upload
+              listType="picture-card"
+              fileList={fileList}
+              customRequest={handleUpload}
+              onChange={handleChange}
+              maxCount={1}
+            >
+              {fileList.length >= 1 ? null : (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Upload</div>
+                </div>
+              )}
+            </Upload>
+
+          </Form.Item>
+
           <Row gutter={[16, 0]}>
+
             <Col span={12}>
               <Form.Item
                 name="sku"

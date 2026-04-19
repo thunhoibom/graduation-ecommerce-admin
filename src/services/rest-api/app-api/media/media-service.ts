@@ -58,3 +58,16 @@ export const updateImage = (id: number, data: ImagePojo) => {
 export const deleteImage = (id: number) => {
   return mediaService.delete<void>(`/${id}`)
 }
+
+export const uploadImage = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await appApiIns.post<ImagePojo>('/api/media/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response
+}
+
+

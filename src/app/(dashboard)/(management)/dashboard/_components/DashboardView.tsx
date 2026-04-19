@@ -162,41 +162,41 @@ const DashboardView: React.FC = () => {
           {/* KPI Cards */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} sm={12} lg={6}>
-              <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Tổng doanh thu</Text>}
                   value={stats?.totalRevenue ?? 0}
                   formatter={(v) => <span style={{ color: '#52c41a' }}>{formatVND(Number(v))}</span>}
                   prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
-                  valueStyle={{ color: '#52c41a', fontWeight: 700 }}
+                  styles={{ content: { color: '#52c41a', fontWeight: 700 } }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Tổng đơn hàng</Text>}
                   value={stats?.totalOrders ?? 0}
                   formatter={(v) => <span style={{ color: '#5856d6' }}>{formatNumber(Number(v))}</span>}
                   prefix={<ShoppingCartOutlined style={{ color: '#5856d6' }} />}
-                  valueStyle={{ color: '#5856d6', fontWeight: 700 }}
+                  styles={{ content: { color: '#5856d6', fontWeight: 700 } }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Sản phẩm bán chạy</Text>}
                   value={stats?.topProducts?.length ?? 0}
                   formatter={(v) => <span style={{ color: '#fa8c16' }}>{String(v)}</span>}
                   prefix={<TrophyOutlined style={{ color: '#fa8c16' }} />}
                   suffix="sản phẩm"
-                  valueStyle={{ color: '#fa8c16', fontWeight: 700 }}
+                  styles={{ content: { color: '#fa8c16', fontWeight: 700 } }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Cảnh báo tồn kho</Text>}
                   value={stats?.lowStockAlerts?.length ?? 0}
@@ -206,9 +206,11 @@ const DashboardView: React.FC = () => {
                     </span>
                   )}
                   prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
-                  valueStyle={{
-                    color: (stats?.lowStockAlerts?.length ?? 0) > 0 ? '#ff4d4f' : '#52c41a',
-                    fontWeight: 700,
+                  styles={{
+                    content: {
+                      color: (stats?.lowStockAlerts?.length ?? 0) > 0 ? '#ff4d4f' : '#52c41a',
+                      fontWeight: 700,
+                    }
                   }}
                 />
               </Card>
@@ -225,13 +227,13 @@ const DashboardView: React.FC = () => {
                     <span>Tình trạng đơn hàng</span>
                   </Space>
                 }
-                bordered={false}
+                variant="borderless"
                 style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
               >
                 {(!stats?.orderStatusBreakdown || stats.orderStatusBreakdown.length === 0) ? (
                   <Empty description="Không có dữ liệu" />
                 ) : (
-                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     {stats.orderStatusBreakdown.map((item: OrderStatusCountPojo) => {
                       const pct = totalOrders > 0 ? Math.round((item.count / totalOrders) * 100) : 0
                       return (
@@ -266,7 +268,7 @@ const DashboardView: React.FC = () => {
                     <span>Doanh thu theo ngày</span>
                   </Space>
                 }
-                bordered={false}
+                variant="borderless"
                 style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
               >
                 {(!stats?.revenueByPeriod || stats.revenueByPeriod.length === 0) ? (
@@ -341,7 +343,7 @@ const DashboardView: React.FC = () => {
                     <span>Top sản phẩm bán chạy</span>
                   </Space>
                 }
-                bordered={false}
+                variant="borderless"
                 style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
               >
                 {(!stats?.topProducts || stats.topProducts.length === 0) ? (
@@ -402,13 +404,13 @@ const DashboardView: React.FC = () => {
                     <span>Cảnh báo tồn kho thấp</span>
                   </Space>
                 }
-                bordered={false}
+                variant="borderless"
                 style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
               >
                 {(!stats?.lowStockAlerts || stats.lowStockAlerts.length === 0) ? (
                   <Empty description="Tất cả sản phẩm đều đủ hàng" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                 ) : (
-                  <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                  <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                     {(stats.lowStockAlerts as LowStockAlertPojo[]).slice(0, 8).map((item) => (
                       <Card
                         key={item.variantId}

@@ -222,7 +222,7 @@ const DiscountListView: React.FC = () => {
         const max = record.maxUses
         const remaining = record.remainingUses ?? (max ? max - used : null)
         return (
-          <Space direction="vertical" size={0} style={{ textAlign: 'center' }}>
+          <Space orientation="vertical" size={0} style={{ textAlign: 'center' }}>
             <Text>{used}{max ? `/${max}` : ''}</Text>
             {remaining !== null && (
               <Text type="secondary" style={{ fontSize: 11 }}>
@@ -326,7 +326,7 @@ const DiscountListView: React.FC = () => {
         okText={editId ? 'Lưu thay đổi' : 'Tạo mã'}
         confirmLoading={saving}
         width={560}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={12}>

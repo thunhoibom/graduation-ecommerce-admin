@@ -164,7 +164,7 @@ const DiscountListView: React.FC = () => {
       key: 'code',
       width: 150,
       render: (code: string, record: DiscountCodePojo) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text code strong style={{ fontSize: 13 }}>{code}</Text>
           {record.currentlyValid === false && (
             <Tag color="default" style={{ fontSize: 10 }}>Hết hạn</Tag>
@@ -366,7 +366,7 @@ const DiscountListView: React.FC = () => {
         onCancel={() => setFormOpen(false)}
         confirmLoading={submitting}
         okText={editingDiscount ? 'Lưu thay đổi' : 'Tạo mới'}
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form

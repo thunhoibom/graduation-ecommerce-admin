@@ -189,7 +189,7 @@ const DataTable: React.FC<DataTableProps> = ({
 
   return (
     <AppTable
-      rowKey="id"
+      rowKey="barcode"
       columns={columns}
       dataSource={data}
       loading={loading}

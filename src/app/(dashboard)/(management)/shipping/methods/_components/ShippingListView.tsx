@@ -268,7 +268,7 @@ const ShippingListView: React.FC = () => {
         onCancel={() => setFormOpen(false)}
         confirmLoading={submitting}
         okText={editingMethod ? 'Lưu thay đổi' : 'Tạo mới'}
-        destroyOnClose
+        destroyOnHidden
         width={540}
       >
         <Form

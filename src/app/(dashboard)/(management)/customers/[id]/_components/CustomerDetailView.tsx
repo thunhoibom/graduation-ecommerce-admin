@@ -310,7 +310,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
                   title="Số đơn hàng"
                   value={customer.orderCount ?? 0}
                   prefix={<ShoppingOutlined />}
-                  valueStyle={{ color: '#1677ff' }}
+                  styles={{ content: { color: '#1677ff' } }}
                 />
               </Col>
               <Col span={12}>
@@ -319,7 +319,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
                   value={customer.totalSpent ?? 0}
                   prefix={<DollarOutlined />}
                   formatter={(value) => formatVND(Number(value))}
-                  valueStyle={{ color: '#52c41a' }}
+                  styles={{ content: { color: '#52c41a' } }}
                 />
               </Col>
             </Row>
@@ -327,7 +327,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
 
           {/* Contact */}
           <Card title="Liên hệ nhanh" style={{ marginBottom: 16 }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
               {customer.email && (
                 <Button
                   block
@@ -367,7 +367,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
             }
           >
             {customer.addresses && customer.addresses.length > 0 ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 {customer.addresses.slice(0, 3).map((addr, idx) => (
                   <Card key={idx} size="small" style={{ background: '#fafafa' }}>
                     {addr.label && (

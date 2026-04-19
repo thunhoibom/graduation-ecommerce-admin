@@ -163,7 +163,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
     switch (status) {
       case 'PENDING':
         return (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <Button
               block
               type="primary"

@@ -5,14 +5,14 @@ type AppModalProps = ModalProps
 
 const AppModal: React.FC<AppModalProps> = ({
   children,
-  destroyOnClose,
+  destroyOnHidden,
   destroyOnHidden,
   ...props
 }) => {
   return (
     <Modal
       {...props}
-      destroyOnHidden={destroyOnHidden ?? destroyOnClose}
+      destroyOnHidden={destroyOnHidden ?? destroyOnHidden}
     >
       {children}
     </Modal>

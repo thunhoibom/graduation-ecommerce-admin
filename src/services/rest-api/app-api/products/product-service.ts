@@ -17,9 +17,12 @@ export type ProductCategoryPojo = {
 
 export type ImagePojo = {
   id?: number
+  code?: string
+  filename?: string
   url?: string
   altText?: string
 }
+
 
 export type ProductPojo = {
   id?: number
@@ -52,16 +55,16 @@ export type ProductVariantPojo = {
   productName?: string
   productBasePrice?: number
   finalPrice?: number
+  images?: ImagePojo[]
+  primaryImageUrl?: string
   createdAt?: string
 }
 
+
 export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 
@@ -71,8 +74,8 @@ export type ProductSearchParams = {
   categoryCode?: string
   minPrice?: number
   maxPrice?: number
-  page?: number
-  size?: number
+  pageIndex?: number
+  pageSize?: number
   sortField?: string
   sortDirection?: 'ASC' | 'DESC'
   active?: boolean
@@ -84,9 +87,10 @@ export type VariantSearchParams = {
   size?: string
   color?: string
   active?: boolean
-  page?: number
+  pageIndex?: number
   pageSize?: number
 }
+
 
 // ─────────────────────────────────────────────────────────────────
 // Product APIs
