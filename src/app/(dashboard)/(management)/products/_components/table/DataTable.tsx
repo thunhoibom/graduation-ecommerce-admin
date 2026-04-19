@@ -41,151 +41,154 @@ const DataTable: React.FC<DataTableProps> = ({
   onView,
   onDelete,
 }) => {
-  const columns: ColumnsType<ProductPojo> = [
-    {
-      title: 'Hình ảnh',
-      dataIndex: 'images',
-      key: 'images',
-      width: 80,
-      render: (images: ProductPojo['images']) => {
-        const url = images?.[0]?.url
-        return url ? (
-          <Image
-            src={url}
-            alt="product"
-            width={56}
-            height={56}
-            style={{ objectFit: 'cover', borderRadius: 8 }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-          />
-        ) : (
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              background: '#f0f0f0',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#999',
-            }}
-          >
-            No img
-          </div>
-        )
+  const columns: ColumnsType<ProductPojo> = React.useMemo(
+    () => [
+      {
+        title: 'Hình ảnh',
+        dataIndex: 'images',
+        key: 'images',
+        width: 80,
+        render: (images: ProductPojo['images']) => {
+          const url = images?.[0]?.url
+          return url ? (
+            <Image
+              src={url}
+              alt="product"
+              width={56}
+              height={56}
+              style={{ objectFit: 'cover', borderRadius: 8 }}
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+            />
+          ) : (
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                background: '#f0f0f0',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                color: '#999',
+              }}
+            >
+              No img
+            </div>
+          )
+        },
       },
-    },
-    {
-      title: 'Barcode',
-      dataIndex: 'barcode',
-      key: 'barcode',
-      width: 150,
-      render: (barcode: string) => (
-        <Text code style={{ fontSize: 12 }}>
-          {barcode}
-        </Text>
-      ),
-    },
-    {
-      title: 'Tên sản phẩm',
-      dataIndex: 'name',
-      key: 'name',
-      ellipsis: true,
-      render: (name: string, record: ProductPojo) => (
-        <div>
-          <Text strong style={{ display: 'block' }}>
-            {name}
+      {
+        title: 'Barcode',
+        dataIndex: 'barcode',
+        key: 'barcode',
+        width: 150,
+        render: (barcode: string) => (
+          <Text code style={{ fontSize: 12 }}>
+            {barcode}
           </Text>
-          {record.category && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.category.name}
+        ),
+      },
+      {
+        title: 'Tên sản phẩm',
+        dataIndex: 'name',
+        key: 'name',
+        ellipsis: true,
+        render: (name: string, record: ProductPojo) => (
+          <div>
+            <Text strong style={{ display: 'block' }}>
+              {name}
             </Text>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Giá bán',
-      dataIndex: 'price',
-      key: 'price',
-      width: 130,
-      align: 'right',
-      sorter: true,
-      render: (price: number) => (
-        <Text style={{ color: '#52c41a', fontWeight: 600 }}>
-          {formatVND(price)}
-        </Text>
-      ),
-    },
-    {
-      title: 'Tồn kho',
-      dataIndex: 'currentStock',
-      key: 'currentStock',
-      width: 100,
-      align: 'right',
-      sorter: true,
-      render: (stock: number | undefined, record: ProductPojo) => {
-        const critical = record.criticalStock ?? 0
-        const color = !stock ? '#ff4d4f' : stock <= critical ? '#fa8c16' : '#52c41a'
-        return (
-          <Tag color={color} style={{ fontWeight: 600 }}>
-            {stock ?? 0}
-          </Tag>
-        )
+            {record.category && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.category.name}
+              </Text>
+            )}
+          </div>
+        ),
       },
-    },
-    {
-      title: 'Đánh giá',
-      dataIndex: 'averageRating',
-      key: 'averageRating',
-      width: 120,
-      align: 'center',
-      render: (rating: number | undefined, record: ProductPojo) => {
-        if (!rating) return <Text type="secondary">—</Text>
-        return (
+      {
+        title: 'Giá bán',
+        dataIndex: 'price',
+        key: 'price',
+        width: 130,
+        align: 'right',
+        sorter: true,
+        render: (price: number) => (
+          <Text style={{ color: '#52c41a', fontWeight: 600 }}>
+            {formatVND(price)}
+          </Text>
+        ),
+      },
+      {
+        title: 'Tồn kho',
+        dataIndex: 'currentStock',
+        key: 'currentStock',
+        width: 100,
+        align: 'right',
+        sorter: true,
+        render: (stock: number | undefined, record: ProductPojo) => {
+          const critical = record.criticalStock ?? 0
+          const color = !stock ? '#ff4d4f' : stock <= critical ? '#fa8c16' : '#52c41a'
+          return (
+            <Tag color={color} style={{ fontWeight: 600 }}>
+              {stock ?? 0}
+            </Tag>
+          )
+        },
+      },
+      {
+        title: 'Đánh giá',
+        dataIndex: 'averageRating',
+        key: 'averageRating',
+        width: 120,
+        align: 'center',
+        render: (rating: number | undefined, record: ProductPojo) => {
+          if (!rating) return <Text type="secondary">—</Text>
+          return (
+            <Space size={4}>
+              <span style={{ color: '#faad14' }}>★</span>
+              <Text>{rating.toFixed(1)}</Text>
+              <Text type="secondary">({record.totalReviews ?? 0})</Text>
+            </Space>
+          )
+        },
+      },
+      {
+        title: 'Thao tác',
+        key: 'action',
+        width: 130,
+        fixed: 'right',
+        render: (_: unknown, record: ProductPojo) => (
           <Space size={4}>
-            <span style={{ color: '#faad14' }}>★</span>
-            <Text>{rating.toFixed(1)}</Text>
-            <Text type="secondary">({record.totalReviews ?? 0})</Text>
+            <Tooltip title="Xem chi tiết">
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                onClick={() => onView(record)}
+              />
+            </Tooltip>
+            <Tooltip title="Sửa">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => onEdit(record)}
+              />
+            </Tooltip>
+            <Tooltip title="Xóa">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => onDelete(record)}
+              />
+            </Tooltip>
           </Space>
-        )
+        ),
       },
-    },
-    {
-      title: 'Thao tác',
-      key: 'action',
-      width: 130,
-      fixed: 'right',
-      render: (_: unknown, record: ProductPojo) => (
-        <Space size={4}>
-          <Tooltip title="Xem chi tiết">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => onView(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Sửa">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => onEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Xóa">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => onDelete(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ]
+    ],
+    [onDelete, onEdit, onView]
+  )
 
   return (
     <AppTable

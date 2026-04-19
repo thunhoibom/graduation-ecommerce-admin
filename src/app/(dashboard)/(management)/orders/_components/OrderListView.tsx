@@ -32,14 +32,27 @@ const { RangePicker } = DatePicker
 // ── Order Status Config ──────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING:          { color: 'orange',  label: 'Chờ xác nhận' },
-  CONFIRMED:        { color: 'blue',    label: 'Đã xác nhận' },
-  PROCESSING:       { color: 'cyan',    label: 'Đang xử lý' },
-  SHIPPED:          { color: 'geekblue',label: 'Đã giao vận chuyển' },
-  DELIVERED:        { color: 'green',   label: 'Giao hàng thành công' },
-  CANCELLED:        { color: 'red',     label: 'Đã hủy' },
-  RETURNED:         { color: 'purple',  label: 'Trả hàng' },
-  DELIVERY_FAILED:  { color: 'volcano', label: 'Giao hàng thất bại' },
+  // Nhóm khởi tạo & Thanh toán
+  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
+  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
+  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
+  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
+
+  // Nhóm xử lý
+  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
+  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
+  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
+  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
+  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
+
+  // Nhóm kết thúc
+  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
+  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
+  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
+  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
+  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
+  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
+  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
 }
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, config]) => ({
@@ -69,15 +82,15 @@ const OrderListView: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('')
 
   const { data, isLoading, mutate } = useAxiosSWR<{
-    data: OrderPojo[]
-    totalElements: number
+    items: OrderPojo[]
+    totalCount: number
   }>(
     [SWR_KEYS.ORDER_LIST, queryParams],
     async () => {
       const res = await searchOrders(queryParams as OrderSearchParams)
       return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
+        items: res.items ?? [],
+        totalCount: res.totalCount ?? 0,
       }
     },
     { revalidateOnMount: true },
@@ -131,21 +144,26 @@ const OrderListView: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 100,
-      render: (id: number) => <Text code>#{id}</Text>,
+      render: (id: number, record: OrderPojo) => <Text code>#{id ?? record.buyOrder}</Text>,
     },
     {
       title: 'Khách hàng',
       key: 'customer',
       ellipsis: true,
-      render: (_: unknown, record: OrderPojo) => (
-        <div>
-          <Text strong>{record.customerName ?? '—'}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.recipientPhone ?? record.customerEmail ?? ''}
-          </Text>
-        </div>
-      ),
+      render: (_: unknown, record: OrderPojo) => {
+        const name = record.customerName ||
+          (record.customer ? `${record.customer.firstName ?? ''} ${record.customer.lastName ?? ''}`.trim() : '—')
+        const contact = record.recipientPhone || record.customer?.phone1 || record.customerEmail || record.customer?.email || ''
+        return (
+          <div>
+            <Text strong>{name}</Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {contact}
+            </Text>
+          </div>
+        )
+      },
     },
     {
       title: 'Ngày đặt',
@@ -187,7 +205,8 @@ const OrderListView: React.FC = () => {
       key: 'status',
       width: 180,
       render: (status: string) => {
-        const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
+        const s = status?.toUpperCase().replace(/[\s,]+/g, '_') || ''
+        const cfg = STATUS_CONFIG[s] ?? { color: 'default', label: status }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
     },
@@ -204,23 +223,23 @@ const OrderListView: React.FC = () => {
       width: 140,
       fixed: 'right',
       render: (_: unknown, record: OrderPojo) => {
-        const status = record.status ?? 'PENDING'
+        const s = record.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
         return (
           <Space size={4}>
             <Button
               type="text"
               icon={<EyeOutlined />}
-              onClick={() => router.push(`/orders/${record.id}`)}
+              onClick={() => router.push(`/orders/${record.id ?? record.buyOrder}`)}
               title="Xem chi tiết"
             />
             {/* Inline status actions */}
-            {status === 'PENDING' && (
+            {(s === 'PENDING' || s === 'PAID_UNCONFIRMED') && (
               <>
                 <Button
                   type="text"
                   icon={<CheckCircleOutlined />}
                   style={{ color: '#52c41a' }}
-                  onClick={() => handleStatusAction(record.id!, 'confirm')}
+                  onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'confirm')}
                   title="Xác nhận"
                 />
                 <Popconfirm
@@ -236,7 +255,7 @@ const OrderListView: React.FC = () => {
                   okText="Từ chối"
                   okButtonProps={{ danger: true }}
                   onConfirm={() => {
-                    handleStatusAction(record.id!, 'reject', rejectReason)
+                    handleStatusAction((record.id ?? record.buyOrder)!, 'reject', rejectReason)
                     setRejectReason('')
                   }}
                 >
@@ -249,11 +268,11 @@ const OrderListView: React.FC = () => {
                 </Popconfirm>
               </>
             )}
-            {(status === 'CONFIRMED' || status === 'PROCESSING') && (
+            {(s === 'CONFIRMED' || s === 'PAID_CONFIRMED' || s === 'PROCESSING') && (
               <Button
                 type="text"
                 icon={<SyncOutlined />}
-                onClick={() => handleStatusAction(record.id!, 'complete')}
+                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'complete')}
                 title="Hoàn tất giao hàng"
               />
             )}
@@ -323,15 +342,15 @@ const OrderListView: React.FC = () => {
 
       {/* Table */}
       <AppTable
-        rowKey="id"
+        rowKey={(record) => String(record.id ?? record.buyOrder)}
         columns={columns}
-        dataSource={data?.data ?? []}
+        dataSource={data?.items ?? []}
         loading={isLoading}
         scroll={{ x: 1100 }}
         pagination={{
           current: queryParams.page ?? 1,
           pageSize: queryParams.size ?? 20,
-          total: data?.totalElements ?? 0,
+          total: data?.totalCount ?? 0,
           showSizeChanger: true,
           showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} đơn hàng`,
           onChange: handleTableChange,

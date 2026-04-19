@@ -1,5 +1,6 @@
 import { appApiIns } from '../api-instance'
 import { createApiService } from '../../utils'
+import { ProductVariantPojo } from '../products/product-service'
 
 const orderService = createApiService(appApiIns, '/api/data/orders')
 
@@ -52,6 +53,7 @@ export type OrderDetailPojo = {
   description?: string
   product?: ProductPojo
   variantId?: number
+  variant?: ProductVariantPojo
 }
 
 export type ProductPojo = {
@@ -147,12 +149,9 @@ export type OrderSearchParams = {
 }
 
 export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 

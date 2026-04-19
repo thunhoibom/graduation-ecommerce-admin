@@ -31,14 +31,27 @@ const { Title, Text, Paragraph } = Typography
 // ── Status Config ────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING:          { color: 'orange',  label: 'Chờ xác nhận' },
-  CONFIRMED:        { color: 'blue',    label: 'Đã xác nhận' },
-  PROCESSING:       { color: 'cyan',    label: 'Đang xử lý' },
-  SHIPPED:          { color: 'geekblue',label: 'Đã giao vận chuyển' },
-  DELIVERED:        { color: 'green',   label: 'Giao hàng thành công' },
-  CANCELLED:        { color: 'red',     label: 'Đã hủy' },
-  RETURNED:         { color: 'purple',  label: 'Trả hàng' },
-  DELIVERY_FAILED:  { color: 'volcano', label: 'Giao hàng thất bại' },
+  // Nhóm khởi tạo & Thanh toán
+  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
+  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
+  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
+  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
+
+  // Nhóm xử lý
+  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
+  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
+  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
+  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
+  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
+
+  // Nhóm kết thúc
+  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
+  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
+  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
+  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
+  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
+  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
+  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
 }
 
 const formatVND = (value: number | undefined) => {
@@ -98,10 +111,10 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
   ) => {
     try {
       switch (action) {
-        case 'confirm':  await confirmOrder(orderId); break
-        case 'reject':   await rejectOrder(orderId, reason); break
+        case 'confirm': await confirmOrder(orderId); break
+        case 'reject': await rejectOrder(orderId, reason); break
         case 'complete': await completeOrder(orderId); break
-        case 'cancel':   await cancelOrder(orderId, reason); break
+        case 'cancel': await cancelOrder(orderId, reason); break
       }
       messageApi.success('Cập nhật trạng thái thành công')
       mutate()
@@ -126,8 +139,8 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     )
   }
 
-  const status = order.status ?? 'PENDING'
-  const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
+  const s = order.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
+  const cfg = STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
 
   const itemColumns: ColumnsType<OrderDetailPojo> = [
     {
@@ -136,13 +149,16 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
       render: (_: unknown, record: OrderDetailPojo) => (
         <div>
           <Text strong>{record.product?.name ?? '—'}</Text>
-          {record.product?.barcode && (
-            <>
-              <br />
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.product.barcode}
-              </Text>
-            </>
+          <br />
+          <Space size={4} split={<Divider type="vertical" />} style={{ fontSize: 12 }}>
+            {record.variant?.sku && <Tag color="blue" style={{ margin: 0 }}>{record.variant.sku}</Tag>}
+            {record.variant?.size && <Text type="secondary">Size: {record.variant.size}</Text>}
+            {record.variant?.color && <Text type="secondary">Màu: {record.variant.color}</Text>}
+          </Space>
+          {!record.variant && record.product?.barcode && (
+            <div style={{ marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>{record.product.barcode}</Text>
+            </div>
           )}
         </div>
       ),
@@ -153,7 +169,7 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
       width: 80,
       align: 'center' as const,
       render: (_: unknown, record: OrderDetailPojo) => {
-        const img = record.product?.images?.[0]?.url
+        const img = record.variant?.primaryImageUrl || record.product?.images?.[0]?.url
         if (!img) return <div style={{ width: 56, height: 56, background: '#f0f0f0', borderRadius: 4 }} />
         return (
           <img
@@ -192,8 +208,9 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
 
   // ── Action buttons by status ──────────────────────────────────
   const actionButtons = () => {
-    switch (status) {
+    switch (s) {
       case 'PENDING':
+      case 'PAID_UNCONFIRMED':
         return (
           <Space>
             <Button
@@ -214,14 +231,15 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
           </Space>
         )
       case 'CONFIRMED':
+      case 'PAID_CONFIRMED':
       case 'PROCESSING':
         return (
           <Button
             type="primary"
             icon={<SyncOutlined />}
-            onClick={() => router.push(`/orders/${orderId}/edit-status`)}
+            onClick={() => handleAction('complete')}
           >
-            Cập nhật trạng thái
+            Hoàn tất giao hàng
           </Button>
         )
       default:

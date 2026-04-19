@@ -26,11 +26,11 @@ function AppTable<T extends object>(props: AppTableProps<T>) {
       pagination={
         props.pagination !== false
           ? {
-              pageSize: 10,
-              showSizeChanger: true,
-              locale: { items_per_page: '' },
-              ...props.pagination,
-            }
+            pageSize: 10,
+            showSizeChanger: true,
+            locale: { items_per_page: '' },
+            ...props.pagination,
+          }
           : false
       }
     />

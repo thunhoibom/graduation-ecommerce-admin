@@ -32,24 +32,38 @@ const { Title, Text, Paragraph } = Typography
 // ── Status pipeline ──────────────────────────────────────────────
 
 const PIPELINE = [
-  { key: 'PENDING',         label: 'Chờ xác nhận',       icon: <ClockCircleOutlined />,      color: 'orange' },
-  { key: 'CONFIRMED',       label: 'Đã xác nhận',         icon: <CheckCircleOutlined />,      color: 'blue' },
-  { key: 'PROCESSING',      label: 'Đang xử lý',           icon: <SyncOutlined />,             color: 'cyan' },
-  { key: 'SHIPPED',         label: 'Đã giao vận chuyển',   icon: <CarOutlined />,              color: 'geekblue' },
-  { key: 'DELIVERED',       label: 'Giao hàng thành công', icon: <CheckCircleOutlined />,      color: 'green' },
+  { key: 'PENDING',           label: 'Chờ thanh toán',     icon: <ClockCircleOutlined />,      color: 'gold' },
+  { key: 'PAID_UNCONFIRMED',  label: 'Đợi xác nhận',       icon: <ExclamationCircleOutlined />,color: 'cyan' },
+  { key: 'PAID_CONFIRMED',    label: 'Đã xác nhận',         icon: <CheckCircleOutlined />,      color: 'blue' },
+  { key: 'PROCESSING',        label: 'Đang xử lý',         icon: <SyncOutlined />,             color: 'processing' },
+  { key: 'SHIPPED',           label: 'Đang giao hàng',     icon: <CarOutlined />,              color: 'geekblue' },
+  { key: 'DELIVERY_COMPLETE', label: 'Hoàn tất',           icon: <CheckCircleOutlined />,      color: 'green' },
 ]
 
-const TERMINAL = ['CANCELLED', 'RETURNED', 'DELIVERY_FAILED']
+const TERMINAL = ['REJECTED', 'ADMIN_CANCELLED', 'CANCELLED', 'RETURNED', 'DELIVERY_FAILED', 'PAYMENT_CANCELLED', 'PAYMENT_FAILED']
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING:          { color: 'orange',  label: 'Chờ xác nhận' },
-  CONFIRMED:        { color: 'blue',    label: 'Đã xác nhận' },
-  PROCESSING:       { color: 'cyan',    label: 'Đang xử lý' },
-  SHIPPED:          { color: 'geekblue',label: 'Đã giao vận chuyển' },
-  DELIVERED:        { color: 'green',   label: 'Giao hàng thành công' },
-  CANCELLED:        { color: 'red',     label: 'Đã hủy' },
-  RETURNED:         { color: 'purple',  label: 'Trả hàng' },
-  DELIVERY_FAILED:  { color: 'volcano', label: 'Giao hàng thất bại' },
+  // Nhóm khởi tạo & Thanh toán
+  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
+  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
+  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
+  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
+
+  // Nhóm xử lý
+  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
+  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
+  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
+  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
+  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
+
+  // Nhóm kết thúc
+  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
+  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
+  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
+  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
+  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
+  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
+  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
 }
 
 const formatVND = (value: number | undefined) => {
@@ -79,9 +93,9 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
     { revalidateOnMount: true },
   )
 
-  const status = order?.status ?? 'PENDING'
-  const currentIdx = PIPELINE.findIndex((p) => p.key === status)
-  const isTerminal = TERMINAL.includes(status)
+  const s = order?.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
+  const currentIdx = PIPELINE.findIndex((p) => p.key === s)
+  const isTerminal = TERMINAL.includes(s)
 
   // ── Action handlers ──────────────────────────────────────────
 
@@ -214,11 +228,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
 
               {/* Action panel */}
               <div>
-                {status === 'PENDING' && (
+                {(s === 'PENDING' || s === 'PAID_UNCONFIRMED') && (
                   <>
                     <Alert
                       message="Xác nhận hoặc từ chối đơn hàng"
-                      description="Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái Đã xác nhận và bắt đầu xử lý."
+                      description="Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái Đã xác nhận và bắt đầu đóng gói."
                       type="info"
                       showIcon
                       style={{ marginBottom: 16 }}
@@ -259,11 +273,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                   </>
                 )}
 
-                {(status === 'CONFIRMED' || status === 'PROCESSING') && (
+                {(s === 'CONFIRMED' || s === 'PAID_CONFIRMED' || s === 'PROCESSING') && (
                   <>
                     <Alert
                       message="Hoàn tất giao hàng"
-                      description="Đánh dấu đơn hàng đã giao thành công đến khách hàng. Thao tác này không thể hoàn tác."
+                      description="Đánh dấu đơn hàng đã giao thành công đến khách hàng và thu tiền (đối với COD). Thao tác này không thể hoàn tác."
                       type="warning"
                       showIcon
                       style={{ marginBottom: 16 }}
@@ -279,15 +293,15 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                     </Button>
                     <Divider />
                     <Text type="secondary">
-                      Để cập nhật mã vận đơn hoặc ghi chú, hãy sử dụng form bên dưới.
+                      Để cập nhật mã vận đơn hoặc ghi chú nội bộ, hãy sử dụng các ô nhập liệu bên dưới.
                     </Text>
                   </>
                 )}
 
-                {status === 'DELIVERED' && (
+                {(s === 'DELIVERED' || s === 'DELIVERY_COMPLETE') && (
                   <Alert
-                    message="Đơn hàng đã giao thành công"
-                    description="Không có thao tác nào cần thực hiện thêm."
+                    message="Đơn hàng đã hoàn tất"
+                    description="Đơn hàng đã được giao thành công và thu tiền. Không cần thực hiện thêm thao tác nào."
                     type="success"
                     showIcon
                   />
