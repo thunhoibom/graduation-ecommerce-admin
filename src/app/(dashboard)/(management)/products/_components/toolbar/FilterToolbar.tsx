@@ -2,13 +2,20 @@
 
 import React, { useCallback } from 'react'
 import { Input, Select, Button, Space, Row, Col } from 'antd'
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
+import {
+  SearchOutlined,
+  PlusOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  FileTextOutlined,
+} from '@ant-design/icons'
 
 interface FilterToolbarProps {
   params: Record<string, string | undefined>
   onChange: (params: Record<string, string | undefined>) => void
   categories: { code: string; name: string }[]
   onAddNew: () => void
+  onBulkOpen?: () => void
 }
 
 const FilterToolbar: React.FC<FilterToolbarProps> = ({
@@ -16,19 +23,27 @@ const FilterToolbar: React.FC<FilterToolbarProps> = ({
   onChange,
   categories,
   onAddNew,
+  onBulkOpen,
 }) => {
   const handleSearch = useCallback(
     (value: string) => {
-      onChange({ name: value || undefined, page: '1' })
+      onChange({ ...params, name: value || undefined, pageIndex: '0' })
     },
-    [onChange],
+    [onChange, params],
   )
 
   const handleCategoryChange = useCallback(
     (value: string | undefined) => {
-      onChange({ categoryCode: value || undefined, page: '1' })
+      onChange({ ...params, categoryCode: value || undefined, pageIndex: '0' })
     },
-    [onChange],
+    [onChange, params],
+  )
+
+  const handleStatusChange = useCallback(
+    (value: string | undefined) => {
+      onChange({ ...params, status: value || undefined, pageIndex: '0' })
+    },
+    [onChange, params],
   )
 
   return (
@@ -65,15 +80,35 @@ const FilterToolbar: React.FC<FilterToolbarProps> = ({
           />
         </Col>
 
-        <Col xs={24} sm={24} md={10} lg={14} style={{ textAlign: 'right' }}>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onAddNew}
-            style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
-          >
-            Thêm sản phẩm
-          </Button>
+        <Col xs={24} sm={12} md={6} lg={4}>
+          <Select
+            placeholder="Trạng thái"
+            allowClear
+            style={{ width: '100%' }}
+            value={params.status}
+            options={[
+              { label: 'Bản nháp', value: 'DRAFT' },
+              { label: 'Đang bán', value: 'PUBLISHED' },
+              { label: 'Ngừng bán', value: 'UNLISTED' },
+            ]}
+            onChange={handleStatusChange}
+          />
+        </Col>
+
+        <Col xs={24} sm={24} md={10} lg={10} style={{ textAlign: 'right' }}>
+          <Space size={8}>
+            <Button icon={<FileTextOutlined />} onClick={onBulkOpen}>
+              Dữ liệu (CSV)
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={onAddNew}
+              style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+            >
+              Thêm sản phẩm
+            </Button>
+          </Space>
         </Col>
       </Row>
     </div>

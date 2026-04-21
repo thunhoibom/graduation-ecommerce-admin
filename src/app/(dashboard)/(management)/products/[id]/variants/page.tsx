@@ -1,9 +1,9 @@
 'use client'
 
-import React, { Suspense, useState } from 'react'
+import React, { Suspense, useState, useCallback } from 'react'
 import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col, Upload, Image as AntdImage } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 
 import Link from 'next/link'
@@ -24,6 +24,7 @@ import {
 import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 
 import AppTable from '@/shared/components/antd/AppTable'
+import BulkOperationsModal from '../../_components/bulk/BulkOperationsModal'
 import { useTableFetchingParamsForVariants, DEFAULT_VARIANT_PARAMS, type DefaultVariantParams } from '../../_hooks/use-fetch-variants'
 
 const { Title, Text } = Typography
@@ -68,8 +69,8 @@ const VariantManagementView: React.FC = () => {
           // Create string-compatible params for the API
           const apiParams = {
             productBarcode: barcode,
-            pageIndex: Number(queryParams.page) - 1,
-            pageSize: queryParams.size,
+            pageIndex: Number(queryParams.pageIndex),
+            pageSize: queryParams.pageSize,
           }
           const res = await searchVariants(apiParams as any)
           return {
@@ -88,6 +89,10 @@ const VariantManagementView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [form] = Form.useForm()
+
+  // Bulk modal + row selection
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [selectedVariantIds, setSelectedVariantIds] = useState<React.Key[]>([])
 
 
   const columns: ColumnsType<ProductVariantPojo> = [
@@ -171,17 +176,37 @@ const VariantManagementView: React.FC = () => {
       ),
     },
     {
-      title: 'Tồn kho',
+      title: 'Tồn thực tế',
       dataIndex: 'currentStock',
       key: 'currentStock',
       width: 100,
       align: 'right',
-      render: (stock: number | undefined, record: ProductVariantPojo) => {
-        const critical = record.criticalStock ?? 0
-        const color = !stock ? 'red' : stock <= critical ? 'orange' : 'green'
+      render: (stock: number | undefined) => <Text>{stock ?? 0}</Text>,
+    },
+    {
+      title: 'Giữ chỗ',
+      dataIndex: 'reservedStock',
+      key: 'reservedStock',
+      width: 100,
+      align: 'right',
+      render: (reserved: number | undefined) => (
+        <Text type={reserved && reserved > 0 ? 'warning' : 'secondary'}>
+          {reserved ?? 0}
+        </Text>
+      ),
+    },
+    {
+      title: 'Khả dụng',
+      dataIndex: 'availableStock',
+      key: 'availableStock',
+      width: 100,
+      align: 'right',
+      render: (available: number | undefined, record: ProductVariantPojo) => {
+        const critical = record.criticalStock ?? 5
+        const color = !available ? 'red' : available <= critical ? 'orange' : 'green'
         return (
           <Tag color={color} style={{ fontWeight: 600 }}>
-            {stock ?? 0}
+            {available ?? 0}
           </Tag>
         )
       },
@@ -266,6 +291,11 @@ const VariantManagementView: React.FC = () => {
     form.resetFields()
     setModalOpen(true)
   }
+
+  const handleBulkComplete = useCallback(() => {
+    setSelectedVariantIds([])
+    mutate()
+  }, [mutate])
 
   const handleUpload: UploadProps['customRequest'] = async (options) => {
     const { file, onSuccess, onError } = options
@@ -352,14 +382,24 @@ const VariantManagementView: React.FC = () => {
       <Card
         title="Danh sách biến thể"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleAddNew}
-            style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
-          >
-            Thêm biến thể
-          </Button>
+          <Space>
+            {selectedVariantIds.length > 0 && (
+              <Button
+                onClick={() => setBulkModalOpen(true)}
+                style={{ borderColor: '#5856d6', color: '#5856d6' }}
+              >
+                Thao tác hàng loạt ({selectedVariantIds.length})
+              </Button>
+            )}
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAddNew}
+              style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+            >
+              Thêm biến thể
+            </Button>
+          </Space>
         }
       >
         <AppTable
@@ -368,16 +408,32 @@ const VariantManagementView: React.FC = () => {
           dataSource={variantData?.data ?? []}
           loading={isLoading}
           scroll={{ x: 1000 }}
+          rowSelection={{
+            selectedRowKeys: selectedVariantIds,
+            onChange: (keys: React.Key[]) => setSelectedVariantIds(keys),
+          }}
           pagination={{
-            current: Number(queryParams.page) || 1,
-            pageSize: Number(queryParams.size) || 20,
+            current: Number(queryParams.pageIndex) + 1 || 1,
+            pageSize: Number(queryParams.pageSize) || 20,
             total: variantData?.totalElements ?? 0,
             showSizeChanger: true,
             showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} biến thể`,
-            onChange: (page, size) => setTableFetchingParams({ page: String(page), size: String(size) }),
+            onChange: (page, size) => setTableFetchingParams({ pageIndex: String(page - 1), pageSize: String(size) }),
           }}
         />
       </Card>
+
+      {/* Bulk Operations Modal */}
+      <BulkOperationsModal
+        open={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        selectedIds={[]}
+        allProductIds={[]}
+        selectedVariantIds={selectedVariantIds as number[]}
+        productBarcode={barcode}
+        categories={[]}
+        onBulkComplete={handleBulkComplete}
+      />
 
       {/* Create / Edit Modal */}
       <Modal

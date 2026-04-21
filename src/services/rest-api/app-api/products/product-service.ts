@@ -24,13 +24,18 @@ export type ImagePojo = {
 }
 
 
+export type ProductStatus = 'DRAFT' | 'PUBLISHED' | 'UNLISTED'
+
 export type ProductPojo = {
   id?: number
   name: string
   barcode: string
   description?: string
   price: number
+  status: ProductStatus
   currentStock?: number
+  reservedStock?: number
+  availableStock?: number
   criticalStock?: number
   category?: ProductCategoryPojo
   images?: ImagePojo[]
@@ -46,9 +51,9 @@ export type ProductVariantPojo = {
   attributes?: string
   priceModifier?: number
   currentStock?: number
-  criticalStock?: number
   reservedStock?: number
   availableStock?: number
+  criticalStock?: number
   active?: boolean
   barcode?: string
   productBarcode: string
@@ -78,7 +83,7 @@ export type ProductSearchParams = {
   pageSize?: number
   sortField?: string
   sortDirection?: 'ASC' | 'DESC'
-  active?: boolean
+  status?: ProductStatus
 }
 
 export type VariantSearchParams = {
@@ -124,7 +129,7 @@ export const patchProduct = (id: number, data: Record<string, unknown>) => {
 // Category APIs
 // ─────────────────────────────────────────────────────────────────
 
-export const searchCategories = (params?: { page?: number; size?: number }) => {
+export const searchCategories = (params?: { pageIndex?: number; pageSize?: number }) => {
   return categoryService.get<PageResponse<ProductCategoryPojo[]>>('', { params })
 }
 
@@ -167,3 +172,127 @@ export const updateVariant = (id: number, data: ProductVariantPojo) => {
 export const deleteVariant = (id: number) => {
   return variantService.delete<void>(`/${id}`)
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Bulk / CSV Operations — Products
+// ─────────────────────────────────────────────────────────────────
+
+export const EXPORT_PRODUCTS_URL = '/api/data/products/export'
+export const IMPORT_PRODUCTS_URL = '/api/data/products/import'
+export const BULK_PUBLISH_URL = '/api/data/products/bulk-publish'
+export const BULK_UNPUBLISH_URL = '/api/data/products/bulk-unpublish'
+export const BULK_DELETE_URL = '/api/data/products/bulk-delete'
+
+// ─────────────────────────────────────────────────────────────────
+// Bulk / CSV Operations — Variants
+// ─────────────────────────────────────────────────────────────────
+
+export const EXPORT_VARIANTS_URL = '/api/data/product-variants/export'
+export const IMPORT_VARIANTS_URL = '/api/data/product-variants/import'
+export const BULK_ACTIVATE_VARIANTS_URL = '/api/data/product-variants/bulk-activate'
+export const BULK_DEACTIVATE_VARIANTS_URL = '/api/data/product-variants/bulk-deactivate'
+export const BULK_DELETE_VARIANTS_URL = '/api/data/product-variants/bulk-delete'
+
+export type BulkOperationResult = {
+  successCount: number
+  errorCount: number
+  errors: string[] | null
+}
+
+export type ProductCsvImportResult = {
+  totalRows: number
+  successCount: number
+  errorCount: number
+  errors: { row: number; rowData: string; error: string }[] | null
+}
+
+export const bulkPublish = (ids: number[]) => {
+  return productService.post<BulkOperationResult>('/bulk-publish', ids)
+}
+
+export const bulkUnpublish = (ids: number[]) => {
+  return productService.post<BulkOperationResult>('/bulk-unpublish', ids)
+}
+
+export const bulkDelete = (ids: number[]) => {
+  return productService.post<BulkOperationResult>('/bulk-delete', ids)
+}
+
+/**
+ * Import a CSV file as multipart/form-data.
+ * Uses the raw axios instance directly (BaseApi only supports JSON).
+ */
+export const importProducts = (file: File): Promise<ProductCsvImportResult> => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return appApiIns.post<ProductCsvImportResult>(IMPORT_PRODUCTS_URL, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+/** Download products CSV via browser redirect (returns blob directly). */
+export const downloadProductsCSV = (
+  categoryCode?: string,
+  filename = 'products.csv'
+): void => {
+  const url = new URL(
+    categoryCode ? `${EXPORT_PRODUCTS_URL}?categoryCode=${encodeURIComponent(categoryCode)}` : EXPORT_PRODUCTS_URL,
+    appApiIns.defaults.baseURL ?? 'http://localhost:8080'
+  )
+
+  const accessToken = localStorage.getItem('accessToken')
+  const link = document.createElement('a')
+  link.href = url.toString()
+  if (accessToken) {
+    link.setAttribute('Authorization', `Bearer ${accessToken}`)
+  }
+  link.setAttribute('download', filename)
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Variants bulk operations
+// ─────────────────────────────────────────────────────────────────
+
+export const downloadVariantsCSV = (
+  productBarcode?: string,
+  filename = 'variants.csv'
+): void => {
+  const url = new URL(
+    productBarcode ? `${EXPORT_VARIANTS_URL}?productBarcode=${encodeURIComponent(productBarcode)}` : EXPORT_VARIANTS_URL,
+    appApiIns.defaults.baseURL ?? 'http://localhost:8080'
+  )
+
+  const accessToken = localStorage.getItem('accessToken')
+  const link = document.createElement('a')
+  link.href = url.toString()
+  if (accessToken) {
+    link.setAttribute('Authorization', `Bearer ${accessToken}`)
+  }
+  link.setAttribute('download', filename)
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+export const importVariants = (file: File): Promise<ProductCsvImportResult> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return appApiIns.post<ProductCsvImportResult>(IMPORT_VARIANTS_URL, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export const bulkActivateVariants = (ids: number[]) =>
+  variantService.post<BulkOperationResult>('/bulk-activate', ids)
+
+export const bulkDeactivateVariants = (ids: number[]) =>
+  variantService.post<BulkOperationResult>('/bulk-deactivate', ids)
+
+export const bulkDeleteVariants = (ids: number[]) =>
+  variantService.post<BulkOperationResult>('/bulk-delete', ids)

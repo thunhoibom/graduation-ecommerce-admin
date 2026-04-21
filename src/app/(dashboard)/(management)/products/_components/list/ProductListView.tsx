@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
-import { Modal, message, Typography, Space } from 'antd'
+import { Modal, message, Typography, Space, Button } from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
 import { useAxios } from '@/shared/hooks/use-axios'
@@ -11,6 +11,7 @@ import {
   deleteProduct,
   createProduct,
   updateProduct,
+  patchProduct,
   type ProductPojo,
   type ProductCategoryPojo,
   type PageResponse,
@@ -19,6 +20,7 @@ import FilterToolbar from '../toolbar/FilterToolbar'
 import DataTable from '../table/DataTable'
 import ProductFormModal from '../form/ProductFormModal'
 import ProductDetailDrawer from '../detail/ProductDetailDrawer'
+import BulkOperationsModal from '../bulk/BulkOperationsModal'
 import { useFetchProducts } from '../../_hooks/use-fetch-products'
 
 const { Title, Text } = Typography
@@ -28,6 +30,7 @@ const ProductListView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
 
   const {
+    data,
     tableData,
     isLoading,
     queryParams,
@@ -35,9 +38,11 @@ const ProductListView: React.FC = () => {
     mutate,
   } = useFetchProducts()
 
+  const total = data?.totalCount ?? 0
+
   // Categories
   const { data: categoryData } = useAxios<PageResponse<ProductCategoryPojo[]>>(
-    async () => searchCategories({ page: 1, size: 100 }),
+    async () => searchCategories({ pageIndex: 0, pageSize: 100 } as any),
     { enabled: true, deps: [] },
   )
   const categories = categoryData?.items ?? []
@@ -51,11 +56,18 @@ const ProductListView: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<ProductPojo | null>(null)
 
+  // Bulk operations modal state
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+
+  // All product IDs (for "select all" when bulk modal is opened)
+  const allProductIds = tableData.map((p) => p.id!).filter(Boolean)
+
   // ── Handlers ────────────────────────────────────────────────
 
   const handleTableChange = useCallback(
     (page: number, size: number) => {
-      setTableFetchingParams({ page: String(page), size: String(size) })
+      setTableFetchingParams({ pageIndex: String(page - 1), pageSize: String(size) })
     },
     [setTableFetchingParams],
   )
@@ -114,6 +126,19 @@ const ProductListView: React.FC = () => {
     [mutate, messageApi],
   )
 
+  const handleChangeStatus = useCallback(
+    async (record: ProductPojo, status: string) => {
+      try {
+        await patchProduct(record.id!, { status })
+        messageApi.success(`Cập nhật trạng thái thành công`)
+        mutate()
+      } catch {
+        messageApi.error('Cập nhật trạng thái thất bại')
+      }
+    },
+    [mutate, messageApi],
+  )
+
   const handleFormSubmit = async (values: Partial<ProductPojo>) => {
     setFormSubmitting(true)
     try {
@@ -132,6 +157,11 @@ const ProductListView: React.FC = () => {
       setFormSubmitting(false)
     }
   }
+
+  const handleBulkComplete = useCallback(() => {
+    setSelectedRowKeys([])
+    mutate()
+  }, [mutate])
 
   return (
     <>
@@ -152,15 +182,55 @@ const ProductListView: React.FC = () => {
         }}
         categories={categories}
         onAddNew={handleAddNew}
+        onBulkOpen={() => setBulkModalOpen(true)}
       />
+
+      {/* Bulk actions bar (shows when rows are selected) */}
+      {selectedRowKeys.length > 0 && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '10px 16px',
+            background: '#f0f0f5',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text strong style={{ color: '#5956d6' }}>
+            Đã chọn {selectedRowKeys.length} sản phẩm
+          </Text>
+          <Space>
+            <Button
+              size="small"
+              onClick={() => setSelectedRowKeys([])}
+            >
+              Bỏ chọn
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+              onClick={() => setBulkModalOpen(true)}
+            >
+              Thao tác hàng loạt
+            </Button>
+          </Space>
+        </div>
+      )}
 
       {/* Table */}
       <DataTable
         data={tableData}
         loading={isLoading}
-        total={0}
-        current={Number(queryParams.page) || 1}
-        pageSize={Number(queryParams.size) || 20}
+        total={total}
+        current={Number(queryParams.pageIndex) + 1 || 1}
+        pageSize={Number(queryParams.pageSize) || 20}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+        }}
         onTableChange={(page, size) => {
           handleTableChange(page, size)
           mutate()
@@ -168,6 +238,7 @@ const ProductListView: React.FC = () => {
         onEdit={handleEdit}
         onView={handleView}
         onDelete={handleDelete}
+        onChangeStatus={handleChangeStatus}
       />
 
       {/* Create / Edit Modal */}
@@ -185,6 +256,17 @@ const ProductListView: React.FC = () => {
         product={selectedProduct}
         onClose={() => setDetailOpen(false)}
         onEdit={handleDetailEdit}
+      />
+
+      {/* Bulk Operations Modal */}
+      <BulkOperationsModal
+        open={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        selectedIds={selectedRowKeys as number[]}
+        allProductIds={allProductIds}
+        selectedVariantIds={[]}
+        categories={categories}
+        onBulkComplete={handleBulkComplete}
       />
     </>
   )

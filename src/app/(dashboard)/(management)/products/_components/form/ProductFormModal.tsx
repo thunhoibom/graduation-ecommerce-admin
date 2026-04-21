@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import {
   Modal,
   Form,
   Input,
   InputNumber,
   Select,
+  TreeSelect,
   Row,
   Col,
   Spin,
@@ -51,11 +52,54 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
   // Load categories
   const { data: categoryData } = useAxiosSWR<PageResponse<ProductCategoryPojo[]>>(
     [SWR_KEYS.CATEGORY_LIST, { page: 1, size: 100 }],
-    async () => searchCategories({ page: 1, size: 100 }),
+    async () => searchCategories({ pageIndex: 0, pageSize: 100 } as any),
     { revalidateOnMount: true },
   )
 
   const categories = categoryData?.items ?? []
+  
+  // Build a tree structure for TreeSelect
+  const treeData = useMemo(() => {
+    if (!categories.length) return []
+
+    const map = new Map<string, any>()
+    const roots: any[] = []
+
+    // First pass: create nodes
+    categories.forEach((cat) => {
+      map.set(cat.code, {
+        title: cat.name,
+        value: cat.code,
+        key: cat.code,
+        children: [],
+      })
+    })
+
+    // Second pass: link parents/children
+    categories.forEach((cat) => {
+      const node = map.get(cat.code)
+      if (cat.parent?.code && map.has(cat.parent.code)) {
+        map.get(cat.parent.code).children.push(node)
+      } else {
+        roots.push(node)
+      }
+    })
+
+    // Recursive cleanup to remove empty children arrays
+    const cleanup = (nodes: any[]) => {
+      nodes.forEach((node) => {
+        if (node.children.length === 0) {
+          delete node.children
+        } else {
+          cleanup(node.children)
+        }
+      })
+    }
+
+    cleanup(roots)
+    return roots
+  }, [categories])
+
 
 
   useEffect(() => {
@@ -66,6 +110,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
           barcode: editing.barcode,
           description: editing.description,
           price: editing.price,
+          status: editing.status || 'DRAFT',
           currentStock: editing.currentStock,
           criticalStock: editing.criticalStock,
           categoryCode: editing.category?.code,
@@ -82,6 +127,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       } else {
         form.resetFields()
+        form.setFieldsValue({ status: 'DRAFT' })
         setFileList([])
       }
     }
@@ -114,9 +160,8 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
-      
+
       // Extract ImagePojo objects from the fileList state or form values
-      // We manually manage it so it's safer to use the response objects from fileList
       const imagePojos = fileList
         .filter(file => file.status === 'done')
         .map(file => file.response as ImagePojo)
@@ -155,7 +200,6 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
             layout="vertical"
             style={{ marginTop: 16 }}
           >
-            {/* We don't use 'name' here because we handle the mapping manually in handleOk */}
             <Form.Item label="Hình ảnh sản phẩm">
               <Upload
                 listType="picture-card"
@@ -165,7 +209,6 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 onRemove={handleRemove}
                 maxCount={1}
               >
-
                 {fileList.length >= 1 ? null : (
                   <div>
                     <PlusOutlined />
@@ -200,15 +243,14 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <Row gutter={[16, 0]}>
               <Col span={12}>
                 <Form.Item name="categoryCode" label="Danh mục">
-                  <Select
+                  <TreeSelect
                     placeholder="Chọn danh mục"
                     allowClear
                     showSearch
-                    optionFilterProp="label"
-                    options={categories.map((c) => ({
-                      label: c.name,
-                      value: c.code,
-                    }))}
+                    treeNodeFilterProp="title"
+                    treeData={treeData}
+                    treeDefaultExpandAll
+                    style={{ width: '100%' }}
                   />
                 </Form.Item>
               </Col>
@@ -247,6 +289,24 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </Col>
             </Row>
 
+            <Row gutter={[16, 0]}>
+              <Col span={12}>
+                <Form.Item
+                  name="status"
+                  label="Trạng thái"
+                  rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
+                >
+                  <Select
+                    options={[
+                      { label: 'Bản nháp', value: 'DRAFT' },
+                      { label: 'Đang bán', value: 'PUBLISHED' },
+                      { label: 'Ngừng bán', value: 'UNLISTED' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
             <Form.Item name="description" label="Mô tả">
               <Input.TextArea rows={3} placeholder="Mô tả sản phẩm..." />
             </Form.Item>
@@ -256,6 +316,5 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
     </>
   )
 }
-
 
 export default ProductFormModal

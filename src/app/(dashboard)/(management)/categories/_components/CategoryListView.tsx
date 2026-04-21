@@ -3,12 +3,14 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import {
   Table, Card, Typography, Row, Col, Button, Input, Modal,
-  Form, Select, Space, message, Popconfirm, Breadcrumb, Tag, Tooltip, theme
+  Form, Select, Space, message, Popconfirm, Breadcrumb, Tag, Tooltip, theme, Upload
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  FolderOutlined, NodeIndexOutlined
+  FolderOutlined, NodeIndexOutlined, UploadOutlined
 } from '@ant-design/icons'
+import type { UploadFile, UploadProps } from 'antd'
+import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 import type { ColumnsType } from 'antd/es/table'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
@@ -18,6 +20,7 @@ import {
   updateCategory,
   deleteCategory,
   type CategoryPojo,
+  type ImagePojo,
 } from '@/services/rest-api/app-api/categories/category-service'
 
 const { Title, Text } = Typography
@@ -76,7 +79,7 @@ const buildTree = (flatItems: CategoryPojo[]): CategoryPojo[] => {
     })
   }
   cleanup(roots)
-  
+
   return roots
 }
 
@@ -85,15 +88,16 @@ const buildTree = (flatItems: CategoryPojo[]): CategoryPojo[] => {
 const CategoryListView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
   const { token } = theme.useToken()
-  const [queryParams, setQueryParams] = useState<{ page?: number; size?: number }>({
-    page: 1,
-    size: 200,
+  const [queryParams, setQueryParams] = useState<{ pageIndex?: number; pageSize?: number }>({
+    pageIndex: 0,
+    pageSize: 200,
   })
   const [searchText, setSearchText] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<CategoryPojo | null>(null)
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
+  const [fileList, setFileList] = useState<UploadFile[]>([])
 
   const { data, isLoading, mutate } = useAxiosSWR<{
     data: CategoryPojo[]
@@ -117,7 +121,7 @@ const CategoryListView: React.FC = () => {
 
   const treeData = useMemo(() => {
     const tree = buildTree(flatCategories)
-    
+
     // Simple filter that preserves tree visually by highlighting or filtering out
     // If there is searchText, filter the flat list and don't render as tree to avoid confusion
     if (searchText) {
@@ -126,12 +130,13 @@ const CategoryListView: React.FC = () => {
         c => c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term)
       ).map(c => ({ ...c, children: undefined })) // Flat view when searching
     }
-    
+
     return tree
   }, [flatCategories, searchText])
 
   const handleAddRoot = () => {
     setEditingCategory(null)
+    setFileList([])
     form.resetFields()
     setFormOpen(true)
   }
@@ -143,7 +148,35 @@ const CategoryListView: React.FC = () => {
       name: record.name,
       parentId: record.parent?.id,
     })
+
+    if (record.image) {
+      setFileList([{
+        uid: record.image.code ?? '-1',
+        name: record.image.filename ?? 'image.png',
+        status: 'done',
+        url: record.image.url,
+        response: record.image
+      }])
+    } else {
+      setFileList([])
+    }
+
     setFormOpen(true)
+  }
+
+  const handleUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh thất bại')
+    }
+  }
+
+  const handleFileChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
+    setFileList(newFileList)
   }
 
   const handleDelete = useCallback(async (id: number) => {
@@ -159,9 +192,12 @@ const CategoryListView: React.FC = () => {
   const handleFormSubmit = async (values: Record<string, unknown>) => {
     setSubmitting(true)
     try {
+      const uploadedImage = fileList[0]?.response as ImagePojo | undefined
+
       const payload: CategoryPojo = {
         code: values.code as string,
         name: values.name as string,
+        image: uploadedImage,
         parent: values.parentId
           ? flatCategories.find((c) => (c.id ?? c.code) === values.parentId)
           : undefined,
@@ -194,7 +230,15 @@ const CategoryListView: React.FC = () => {
       key: 'name',
       render: (text, record) => (
         <Space>
-          <FolderOutlined style={{ color: token.colorPrimary }} />
+          {record.image?.url ? (
+            <img 
+              src={record.image.url} 
+              alt={text} 
+              style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} 
+            />
+          ) : (
+            <FolderOutlined style={{ color: token.colorPrimary }} />
+          )}
           <Text strong style={{ fontSize: 15 }}>{text}</Text>
         </Space>
       ),
@@ -205,7 +249,7 @@ const CategoryListView: React.FC = () => {
       key: 'code',
       width: '30%',
       render: (code) => (
-        <Tag color="blue" bordered={false} style={{ padding: '4px 8px', borderRadius: 6 }}>
+        <Tag color="blue" variant="filled" style={{ padding: '4px 8px', borderRadius: 6 }}>
           <NodeIndexOutlined style={{ marginRight: 4 }} />
           {code}
         </Tag>
@@ -217,11 +261,11 @@ const CategoryListView: React.FC = () => {
       width: '20%',
       render: (_, record) => {
         return record.parent ? (
-          <Tag color="cyan" bordered={false}>
+          <Tag color="cyan" variant="filled">
             Danh mục con
           </Tag>
         ) : (
-          <Tag color="volcano" bordered={false}>
+          <Tag color="volcano" variant="filled">
             Root
           </Tag>
         )
@@ -303,12 +347,12 @@ const CategoryListView: React.FC = () => {
         />
       </Card>
 
-      <Card 
-        styles={{ body: { padding: 0 } }} 
-        variant="borderless" 
+      <Card
+        styles={{ body: { padding: 0 } }}
+        variant="borderless"
         style={{ borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}
       >
-          <Table
+        <Table
           columns={columns}
           dataSource={treeData}
           rowKey={(record) => record.id ?? record.code}
@@ -319,8 +363,8 @@ const CategoryListView: React.FC = () => {
           }}
           rowClassName={() => 'category-row'}
           onRow={(record) => ({
-             style: { cursor: 'pointer' },
-             onClick: () => handleEdit(record)
+            style: { cursor: 'pointer' },
+            onClick: () => handleEdit(record)
           })}
         />
       </Card>
@@ -349,10 +393,10 @@ const CategoryListView: React.FC = () => {
             label={<Text strong>Mã danh mục</Text>}
             rules={[{ required: true, message: 'Vui lòng nhập mã danh mục!' }]}
           >
-            <Input 
-              size="large" 
-              placeholder="VD: MENSWEAR, SHIRTS..." 
-              disabled={!!editingCategory} 
+            <Input
+              size="large"
+              placeholder="VD: MENSWEAR, SHIRTS..."
+              disabled={!!editingCategory}
               style={{ borderRadius: 6 }}
             />
           </Form.Item>
@@ -377,9 +421,26 @@ const CategoryListView: React.FC = () => {
               }
             />
           </Form.Item>
+
+          <Form.Item label={<Text strong>Hình ảnh danh mục</Text>}>
+            <Upload
+              listType="picture-card"
+              fileList={fileList}
+              customRequest={handleUpload}
+              onChange={handleFileChange}
+              maxCount={1}
+            >
+              {fileList.length < 1 && (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Tải lên</div>
+                </div>
+              )}
+            </Upload>
+          </Form.Item>
         </Form>
       </Modal>
-      
+
       <style>{`
         .category-row:hover > td {
           background-color: #f8f9fa !important;

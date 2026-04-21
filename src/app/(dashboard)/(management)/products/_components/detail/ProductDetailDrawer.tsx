@@ -124,23 +124,36 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({
             {formatVND(product.price)}
           </Text>
         </Descriptions.Item>
-        <Descriptions.Item label="Tồn kho">
-          <Tag
-            color={
-              !product.currentStock
-                ? 'red'
-                : (product.currentStock ?? 0) <= (product.criticalStock ?? 0)
-                  ? 'orange'
-                  : 'green'
-            }
-          >
-            {product.currentStock ?? 0}
-          </Tag>
-          {product.criticalStock != null && (
-            <Text type="secondary" style={{ marginLeft: 8 }}>
-              (ngưỡng: {product.criticalStock})
-            </Text>
-          )}
+        <Descriptions.Item label="Quản lý tồn kho">
+          <Space direction="vertical" size={2}>
+            <div>
+              Tồn thực tế: <Text strong>{product.currentStock ?? 0}</Text>
+            </div>
+            <div>
+              Đang giữ hàng: <Text type={product.reservedStock && product.reservedStock > 0 ? 'warning' : 'secondary'}>
+                {product.reservedStock ?? 0}
+              </Text>
+            </div>
+            <div>
+              Khả dụng: <Tag
+                color={
+                  !product.availableStock
+                    ? 'red'
+                    : (product.availableStock ?? 0) <= (product.criticalStock ?? 5)
+                      ? 'orange'
+                      : 'green'
+                }
+                style={{ fontWeight: 'bold' }}
+              >
+                {product.availableStock ?? 0}
+              </Tag>
+            </div>
+            {product.criticalStock != null && (
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                <Text type="secondary">(Ngưỡng cảnh báo: {product.criticalStock})</Text>
+              </div>
+            )}
+          </Space>
         </Descriptions.Item>
         <Descriptions.Item label="Đánh giá">
           {product.averageRating ? (

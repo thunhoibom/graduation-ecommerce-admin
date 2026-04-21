@@ -5,14 +5,14 @@ import { useSearchParamsState } from '@/shared/hooks/use-search-params-state'
 import type { VariantSearchParams } from '@/services/rest-api/app-api/products/product-service'
 
 export type DefaultVariantParams = {
-  page: string
-  size: string
+  pageIndex: string
+  pageSize: string
   productBarcode: string
 }
 
 export const DEFAULT_VARIANT_PARAMS: Partial<DefaultVariantParams> = {
-  page: '1',
-  size: '20',
+  pageIndex: '0',
+  pageSize: '20',
 }
 
 export const useTableFetchingParamsForVariants = <T extends Record<string, string | undefined>>(

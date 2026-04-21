@@ -7,17 +7,26 @@ const categoryService = createApiService(appApiIns, '/api/data/product_categorie
 // Types
 // ─────────────────────────────────────────────────────────────────
 
+export type ImagePojo = {
+  id?: number
+  code?: string
+  filename?: string
+  url?: string
+  altText?: string
+}
+
 export type CategoryPojo = {
   id?: number
   code: string
   name: string
+  image?: ImagePojo
   parent?: CategoryPojo
   children?: CategoryPojo[]
 }
 
 export type CategorySearchParams = {
-  page?: number
-  size?: number
+  pageIndex?: number
+  pageSize?: number
 }
 
 export type PageResponse<T> = {

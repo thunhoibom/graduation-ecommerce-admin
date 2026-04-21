@@ -4,13 +4,13 @@ import { searchProducts, type ProductSearchParams, type ProductPojo, type PageRe
 import { useTableFetchingParams } from './use-table-fetching-params'
 
 export type DefaultProductParams = {
-  page: string
-  size: string
+  pageIndex: string
+  pageSize: string
 }
 
 export const DEFAULT_PRODUCT_PARAMS: Partial<DefaultProductParams> = {
-  page: '1',
-  size: '20',
+  pageIndex: '0',
+  pageSize: '20',
 }
 
 export const useFetchProducts = (enabled: boolean = true) => {
@@ -19,7 +19,22 @@ export const useFetchProducts = (enabled: boolean = true) => {
 
   const { data, isLoading, mutate } = useAxiosSWR<PageResponse<ProductPojo[]>>(
     enabled ? [SWR_KEYS.PRODUCT_LIST, queryParams] : null,
-    async () => searchProducts(queryParams as unknown as ProductSearchParams),
+    async () => {
+      const searchParams: ProductSearchParams = { ...queryParams } as any
+      if (typeof queryParams.minPrice === 'string') {
+        searchParams.minPrice = Number(queryParams.minPrice)
+      }
+      if (typeof queryParams.maxPrice === 'string') {
+        searchParams.maxPrice = Number(queryParams.maxPrice)
+      }
+      if (typeof queryParams.pageIndex === 'string') {
+        searchParams.pageIndex = Number(queryParams.pageIndex)
+      }
+      if (typeof queryParams.pageSize === 'string') {
+        searchParams.pageSize = Number(queryParams.pageSize)
+      }
+      return searchProducts(searchParams)
+    },
     { revalidateOnMount: true },
   )
 

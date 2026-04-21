@@ -248,7 +248,7 @@ const DashboardView: React.FC = () => {
                             percent={pct}
                             showInfo={false}
                             strokeColor="#5856d6"
-                            trailColor="#f0f0f0"
+                            railColor="#f0f0f0"
                             size="small"
                           />
                         </div>

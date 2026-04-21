@@ -1,10 +1,18 @@
 'use client'
 
 import React from 'react'
-import { Table, Image, Tag, Space, Button, Tooltip, Typography } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Image, Tag, Space, Button, Tooltip, Typography, Dropdown } from 'antd'
+import type { ColumnsType, TableProps } from 'antd/es/table'
+import {
+  EditOutlined,
+  EyeOutlined,
+  DeleteOutlined,
+  SettingOutlined,
+  DownOutlined,
+} from '@ant-design/icons'
 import AppTable from '@/shared/components/antd/AppTable'
+import { useRouter } from 'next/navigation'
+import { paths } from '@/routes/paths'
 import type { ProductPojo } from '../../_types'
 
 const { Text } = Typography
@@ -15,10 +23,12 @@ interface DataTableProps {
   total: number
   current: number
   pageSize: number
+  rowSelection?: TableProps<ProductPojo>['rowSelection']
   onTableChange: (page: number, size: number) => void
   onEdit: (record: ProductPojo) => void
   onView: (record: ProductPojo) => void
   onDelete: (record: ProductPojo) => void
+  onChangeStatus?: (record: ProductPojo, status: string) => void
 }
 
 const formatVND = (value: number | undefined) => {
@@ -36,11 +46,14 @@ const DataTable: React.FC<DataTableProps> = ({
   total,
   current,
   pageSize,
+  rowSelection,
   onTableChange,
   onEdit,
   onView,
   onDelete,
+  onChangeStatus,
 }) => {
+  const router = useRouter()
   const columns: ColumnsType<ProductPojo> = React.useMemo(
     () => [
       {
@@ -82,7 +95,7 @@ const DataTable: React.FC<DataTableProps> = ({
         title: 'Barcode',
         dataIndex: 'barcode',
         key: 'barcode',
-        width: 150,
+        width: 120,
         render: (barcode: string) => (
           <Text code style={{ fontSize: 12 }}>
             {barcode}
@@ -111,7 +124,7 @@ const DataTable: React.FC<DataTableProps> = ({
         title: 'Giá bán',
         dataIndex: 'price',
         key: 'price',
-        width: 130,
+        width: 120,
         align: 'right',
         sorter: true,
         render: (price: number) => (
@@ -121,18 +134,55 @@ const DataTable: React.FC<DataTableProps> = ({
         ),
       },
       {
-        title: 'Tồn kho',
-        dataIndex: 'currentStock',
-        key: 'currentStock',
+        title: 'Trạng thái',
+        dataIndex: 'status',
+        key: 'status',
+        width: 130,
+        align: 'center',
+        render: (status: string, record: ProductPojo) => {
+          const statusConfig: Record<string, { color: string; label: string }> = {
+            DRAFT: { color: 'default', label: 'Bản nháp' },
+            PUBLISHED: { color: 'success', label: 'Đang bán' },
+            UNLISTED: { color: 'orange', label: 'Ngừng bán' },
+          }
+          const config = statusConfig[status] || statusConfig.DRAFT
+
+          const items = [
+            { key: 'DRAFT', label: 'Bản nháp' },
+            { key: 'PUBLISHED', label: 'Đang bán' },
+            { key: 'UNLISTED', label: 'Ngừng bán' },
+          ]
+
+          return (
+            <Dropdown
+              menu={{
+                items,
+                onClick: ({ key }) => onChangeStatus?.(record, key),
+              }}
+              trigger={['click']}
+            >
+              <Tag
+                color={config.color}
+                style={{ cursor: 'pointer', fontWeight: 600, margin: 0 }}
+              >
+                {config.label} <DownOutlined style={{ fontSize: 10 }} />
+              </Tag>
+            </Dropdown>
+          )
+        },
+      },
+      {
+        title: 'Khả dụng',
+        dataIndex: 'availableStock',
+        key: 'availableStock',
         width: 100,
         align: 'right',
-        sorter: true,
-        render: (stock: number | undefined, record: ProductPojo) => {
-          const critical = record.criticalStock ?? 0
-          const color = !stock ? '#ff4d4f' : stock <= critical ? '#fa8c16' : '#52c41a'
+        render: (available: number | undefined, record: ProductPojo) => {
+          const critical = record.criticalStock ?? 5
+          const color = !available ? '#ff4d4f' : available <= critical ? '#fa8c16' : '#52c41a'
           return (
-            <Tag color={color} style={{ fontWeight: 600 }}>
-              {stock ?? 0}
+            <Tag color={color} style={{ fontWeight: 600, margin: 0 }}>
+              {available ?? 0}
             </Tag>
           )
         },
@@ -141,7 +191,7 @@ const DataTable: React.FC<DataTableProps> = ({
         title: 'Đánh giá',
         dataIndex: 'averageRating',
         key: 'averageRating',
-        width: 120,
+        width: 100,
         align: 'center',
         render: (rating: number | undefined, record: ProductPojo) => {
           if (!rating) return <Text type="secondary">—</Text>
@@ -149,7 +199,6 @@ const DataTable: React.FC<DataTableProps> = ({
             <Space size={4}>
               <span style={{ color: '#faad14' }}>★</span>
               <Text>{rating.toFixed(1)}</Text>
-              <Text type="secondary">({record.totalReviews ?? 0})</Text>
             </Space>
           )
         },
@@ -157,13 +206,14 @@ const DataTable: React.FC<DataTableProps> = ({
       {
         title: 'Thao tác',
         key: 'action',
-        width: 130,
+        width: 160,
         fixed: 'right',
         render: (_: unknown, record: ProductPojo) => (
-          <Space size={4}>
+          <Space size={0}>
             <Tooltip title="Xem chi tiết">
               <Button
                 type="text"
+                size="small"
                 icon={<EyeOutlined />}
                 onClick={() => onView(record)}
               />
@@ -171,13 +221,23 @@ const DataTable: React.FC<DataTableProps> = ({
             <Tooltip title="Sửa">
               <Button
                 type="text"
+                size="small"
                 icon={<EditOutlined />}
                 onClick={() => onEdit(record)}
+              />
+            </Tooltip>
+            <Tooltip title="Quản lý biến thể">
+              <Button
+                type="text"
+                size="small"
+                icon={<SettingOutlined />}
+                onClick={() => router.push(paths.products.variants(String(record.id)))}
               />
             </Tooltip>
             <Tooltip title="Xóa">
               <Button
                 type="text"
+                size="small"
                 danger
                 icon={<DeleteOutlined />}
                 onClick={() => onDelete(record)}
@@ -187,16 +247,17 @@ const DataTable: React.FC<DataTableProps> = ({
         ),
       },
     ],
-    [onDelete, onEdit, onView]
+    [onDelete, onEdit, onView, onChangeStatus, router]
   )
 
   return (
     <AppTable
-      rowKey="barcode"
+      rowKey="id"
       columns={columns}
       dataSource={data}
       loading={loading}
-      scroll={{ x: 900 }}
+      scroll={{ x: 1000 }}
+      rowSelection={rowSelection}
       pagination={{
         current,
         pageSize,
