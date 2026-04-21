@@ -59,8 +59,8 @@ const STATUS_OPTIONS = [
 const DiscountListView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<DiscountSearchParams>>({
-    page: 1,
-    size: 20,
+    pageIndex: 0,
+    pageSize: 20,
   })
   const [form] = Form.useForm<DiscountFormData>()
 
@@ -70,26 +70,26 @@ const DiscountListView: React.FC = () => {
   const [saving, setSaving] = useState(false)
 
   const { data, isLoading, mutate } = useAxiosSWR<{
-    data: DiscountCodePojo[]
-    totalElements: number
+    items: DiscountCodePojo[]
+    totalCount: number
   }>(
     [SWR_KEYS.DISCOUNT_LIST, queryParams],
     async () => {
       const res = await searchDiscounts(queryParams as DiscountSearchParams)
       return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
+        items: res.items ?? [],
+        totalCount: res.totalCount ?? 0,
       }
     },
     { revalidateOnMount: true },
   )
 
   const handleTableChange = useCallback((page: number, size: number) => {
-    setQueryParams((prev) => ({ ...prev, page, size }))
+    setQueryParams((prev) => ({ ...prev, pageIndex: Math.max(page - 1, 0), pageSize: size }))
   }, [])
 
   const handleFilter = useCallback((key: string, value: unknown) => {
-    setQueryParams((prev) => ({ ...prev, [key]: value ?? undefined, page: 1 }))
+    setQueryParams((prev) => ({ ...prev, [key]: value ?? undefined, pageIndex: 0 }))
   }, [])
 
   const openCreateModal = () => {
@@ -445,7 +445,7 @@ const DiscountListView: React.FC = () => {
               onSearch={(v) => setQueryParams((prev) => ({
                 ...prev,
                 code: v || undefined,
-                page: 1,
+                pageIndex: 0,
               }))}
             />
           </Col>
@@ -474,13 +474,13 @@ const DiscountListView: React.FC = () => {
       <AppTable
         rowKey="id"
         columns={columns}
-        dataSource={data?.data ?? []}
+        dataSource={data?.items ?? []}
         loading={isLoading}
         scroll={{ x: 1100 }}
         pagination={{
-          current: queryParams.page ?? 1,
-          pageSize: queryParams.size ?? 20,
-          total: data?.totalElements ?? 0,
+          current: (queryParams.pageIndex ?? 0) + 1,
+          pageSize: queryParams.pageSize ?? 20,
+          total: data?.totalCount ?? 0,
           showSizeChanger: true,
           showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} mã giảm giá`,
           onChange: handleTableChange,

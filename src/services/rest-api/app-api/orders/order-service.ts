@@ -191,6 +191,22 @@ export const completeOrder = (id: number) => {
   return orderService.post<OrderPojo>('/completion', { id })
 }
 
+export const handoverOrderToCarrier = (id: number) => {
+  return orderService.post<OrderPojo>('/delivery-on-route', { id })
+}
+
+export const markOrderDeliveryFailed = (id: number) => {
+  return orderService.post<OrderPojo>('/delivery-failed', { id })
+}
+
+export const markOrderDeliveryCancelled = (id: number, reason?: string) => {
+  return orderService.post<OrderPojo>('/delivery-cancelled', { id, notes: reason })
+}
+
+export const markOrderReturned = (id: number, reason?: string) => {
+  return orderService.post<OrderPojo>('/return', { id, notes: reason })
+}
+
 export const cancelOrder = (id: number, reason?: string) => {
   return orderService.post<OrderPojo>('/cancellation', { id, notes: reason })
 }

@@ -20,39 +20,21 @@ import {
   confirmOrder,
   rejectOrder,
   completeOrder,
-  cancelOrder,
+  handoverOrderToCarrier,
+  markOrderDeliveryFailed,
+  markOrderDeliveryCancelled,
+  markOrderReturned,
   type OrderPojo,
   type OrderDetailPojo,
-  type ProductPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
+import {
+  ACTIONS_BY_STATUS,
+  ORDER_STATUS_CONFIG,
+  normalizeOrderStatus,
+  type OrderStatusAction,
+} from '@/constants/order-status'
 
 const { Title, Text, Paragraph } = Typography
-
-// ── Status Config ────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  // Nhóm khởi tạo & Thanh toán
-  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
-  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
-  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
-  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
-
-  // Nhóm xử lý
-  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
-  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
-  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
-  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
-  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
-
-  // Nhóm kết thúc
-  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
-  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
-  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
-  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
-  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
-  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
-  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
-}
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '—'
@@ -106,15 +88,18 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
   )
 
   const handleAction = async (
-    action: 'confirm' | 'reject' | 'complete' | 'cancel',
+    action: OrderStatusAction,
     reason?: string,
   ) => {
     try {
       switch (action) {
         case 'confirm': await confirmOrder(orderId); break
         case 'reject': await rejectOrder(orderId, reason); break
+        case 'handover': await handoverOrderToCarrier(orderId); break
         case 'complete': await completeOrder(orderId); break
-        case 'cancel': await cancelOrder(orderId, reason); break
+        case 'deliveryFailed': await markOrderDeliveryFailed(orderId); break
+        case 'deliveryCancelled': await markOrderDeliveryCancelled(orderId, reason); break
+        case 'markReturned': await markOrderReturned(orderId, reason); break
       }
       messageApi.success('Cập nhật trạng thái thành công')
       mutate()
@@ -139,8 +124,8 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     )
   }
 
-  const s = order.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
-  const cfg = STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
+  const s = normalizeOrderStatus(order.status)
+  const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
 
   const itemColumns: ColumnsType<OrderDetailPojo> = [
     {
@@ -208,50 +193,79 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
 
   // ── Action buttons by status ──────────────────────────────────
   const actionButtons = () => {
-    switch (s) {
-      case 'PENDING':
-      case 'PAID_UNCONFIRMED':
-        return (
-          <Space>
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              onClick={() => handleAction('confirm')}
-              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-            >
-              Xác nhận đơn
-            </Button>
-            <Button
-              danger
-              icon={<CloseCircleOutlined />}
-              onClick={() => handleAction('reject', 'Từ chối đơn hàng')}
-            >
-              Từ chối
-            </Button>
-          </Space>
-        )
-      case 'CONFIRMED':
-      case 'PAID_CONFIRMED':
-      case 'PROCESSING':
-        return (
+    const availableActions = ACTIONS_BY_STATUS[s] ?? []
+    if (availableActions.includes('confirm')) {
+      return (
+        <Space>
           <Button
             type="primary"
-            icon={<SyncOutlined />}
-            onClick={() => handleAction('complete')}
+            icon={<CheckCircleOutlined />}
+            onClick={() => handleAction('confirm')}
+            style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
           >
-            Hoàn tất giao hàng
+            Xác nhận đơn
           </Button>
-        )
-      default:
-        return (
           <Button
-            icon={<EditOutlined />}
-            onClick={() => router.push(`/orders/${orderId}/edit-status`)}
+            danger
+            icon={<CloseCircleOutlined />}
+            onClick={() => handleAction('reject', 'Từ chối đơn hàng')}
           >
-            Chỉnh sửa trạng thái
+            Từ chối
           </Button>
-        )
+        </Space>
+      )
     }
+    if (availableActions.includes('handover')) {
+      return (
+        <Button
+          type="primary"
+          icon={<SyncOutlined />}
+          onClick={() => handleAction('handover')}
+        >
+          Bàn giao cho ĐVVC
+        </Button>
+      )
+    }
+    if (availableActions.includes('complete') || availableActions.includes('deliveryFailed')) {
+      return (
+        <Space>
+          {availableActions.includes('complete') && (
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={() => handleAction('complete')}
+            >
+              Hoàn tất giao hàng
+            </Button>
+          )}
+          {availableActions.includes('deliveryFailed') && (
+            <Button danger icon={<CloseCircleOutlined />} onClick={() => handleAction('deliveryFailed')}>
+              Giao thất bại
+            </Button>
+          )}
+          {availableActions.includes('deliveryCancelled') && (
+            <Button danger icon={<CloseCircleOutlined />} onClick={() => handleAction('deliveryCancelled', 'Thu hồi vận chuyển')}>
+              Thu hồi đơn
+            </Button>
+          )}
+        </Space>
+      )
+    }
+    if (availableActions.includes('markReturned')) {
+      return (
+        <Button icon={<SyncOutlined />} onClick={() => handleAction('markReturned')}>
+          Đánh dấu hoàn hàng
+        </Button>
+      )
+    }
+    return (
+      <Button
+        icon={<EditOutlined />}
+        onClick={() => router.push(`/orders/${orderId}/edit-status`)}
+      >
+        Chỉnh sửa trạng thái
+      </Button>
+    )
   }
 
   return (

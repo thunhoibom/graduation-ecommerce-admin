@@ -49,17 +49,14 @@ export type DiscountSearchParams = {
   code?: string
   active?: boolean
   type?: DiscountType
-  page?: number
-  size?: number
+  pageIndex?: number
+  pageSize?: number
 }
 
 export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 

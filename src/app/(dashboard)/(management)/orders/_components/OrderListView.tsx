@@ -1,14 +1,14 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Table, Tag, Space, Button, Typography, Card, Row, Col,
-  Select, DatePicker, Input, Modal, message, Popconfirm,
+  Select, DatePicker, Input, message, Popconfirm,
 } from 'antd'
 import {
   EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  SyncOutlined, PlusOutlined, SearchOutlined, FileTextOutlined,
+  SyncOutlined, PlusOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -20,45 +20,25 @@ import {
   confirmOrder,
   rejectOrder,
   completeOrder,
-  cancelOrder,
+  handoverOrderToCarrier,
+  markOrderDeliveryFailed,
+  markOrderDeliveryCancelled,
+  markOrderReturned,
   type OrderPojo,
   type OrderSearchParams,
 } from '@/services/rest-api/app-api/orders/order-service'
+import {
+  ACTIONS_BY_STATUS,
+  ORDER_STATUS_CONFIG,
+  ORDER_STATUS_OPTIONS,
+  normalizeOrderStatus,
+  type OrderStatusAction,
+} from '@/constants/order-status'
 import AppTable from '@/shared/components/antd/AppTable'
+import { addNewOrderListener } from '@/shared/notifications/admin-notification-events'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
-
-// ── Order Status Config ──────────────────────────────────────────
-
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  // Nhóm khởi tạo & Thanh toán
-  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
-  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
-  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
-  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
-
-  // Nhóm xử lý
-  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
-  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
-  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
-  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
-  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
-
-  // Nhóm kết thúc
-  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
-  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
-  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
-  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
-  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
-  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
-  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
-}
-
-const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, config]) => ({
-  label: config.label,
-  value,
-}))
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '0 ₫'
@@ -96,6 +76,13 @@ const OrderListView: React.FC = () => {
     { revalidateOnMount: true },
   )
 
+  useEffect(() => {
+    const unsubscribe = addNewOrderListener(() => {
+      mutate()
+    })
+    return unsubscribe
+  }, [mutate])
+
   const handleTableChange = useCallback((page: number, size: number) => {
     setQueryParams((prev) => ({ ...prev, page, size }))
     mutate()
@@ -121,15 +108,18 @@ const OrderListView: React.FC = () => {
 
   const handleStatusAction = async (
     orderId: number,
-    action: 'confirm' | 'reject' | 'complete' | 'cancel',
+    action: OrderStatusAction,
     reason?: string,
   ) => {
     try {
       switch (action) {
         case 'confirm':  await confirmOrder(orderId); break
         case 'reject':    await rejectOrder(orderId, reason); break
+        case 'handover': await handoverOrderToCarrier(orderId); break
         case 'complete':  await completeOrder(orderId); break
-        case 'cancel':    await cancelOrder(orderId, reason); break
+        case 'deliveryFailed': await markOrderDeliveryFailed(orderId); break
+        case 'deliveryCancelled': await markOrderDeliveryCancelled(orderId, reason); break
+        case 'markReturned': await markOrderReturned(orderId, reason); break
       }
       messageApi.success('Cập nhật trạng thái thành công')
       mutate()
@@ -205,8 +195,8 @@ const OrderListView: React.FC = () => {
       key: 'status',
       width: 180,
       render: (status: string) => {
-        const s = status?.toUpperCase().replace(/[\s,]+/g, '_') || ''
-        const cfg = STATUS_CONFIG[s] ?? { color: 'default', label: status }
+        const s = normalizeOrderStatus(status)
+        const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: status }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
     },
@@ -223,7 +213,8 @@ const OrderListView: React.FC = () => {
       width: 140,
       fixed: 'right',
       render: (_: unknown, record: OrderPojo) => {
-        const s = record.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
+        const s = normalizeOrderStatus(record.status)
+        const availableActions = ACTIONS_BY_STATUS[s] ?? []
         return (
           <Space size={4}>
             <Button
@@ -233,7 +224,7 @@ const OrderListView: React.FC = () => {
               title="Xem chi tiết"
             />
             {/* Inline status actions */}
-            {(s === 'PENDING' || s === 'PAID_UNCONFIRMED') && (
+            {availableActions.includes('confirm') && (
               <>
                 <Button
                   type="text"
@@ -268,12 +259,63 @@ const OrderListView: React.FC = () => {
                 </Popconfirm>
               </>
             )}
-            {(s === 'CONFIRMED' || s === 'PAID_CONFIRMED' || s === 'PROCESSING') && (
+            {availableActions.includes('handover') && (
+              <Button
+                type="text"
+                icon={<SyncOutlined />}
+                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'handover')}
+                title="Bàn giao đơn vị vận chuyển"
+              />
+            )}
+            {availableActions.includes('complete') && (
               <Button
                 type="text"
                 icon={<SyncOutlined />}
                 onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'complete')}
                 title="Hoàn tất giao hàng"
+              />
+            )}
+            {availableActions.includes('deliveryFailed') && (
+              <Button
+                type="text"
+                danger
+                icon={<CloseCircleOutlined />}
+                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'deliveryFailed')}
+                title="Đánh dấu giao thất bại"
+              />
+            )}
+            {availableActions.includes('deliveryCancelled') && (
+              <Popconfirm
+                title="Thu hồi vận chuyển"
+                description={
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Lý do thu hồi..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                }
+                okText="Thu hồi"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => {
+                  handleStatusAction((record.id ?? record.buyOrder)!, 'deliveryCancelled', cancelReason)
+                  setCancelReason('')
+                }}
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  title="Thu hồi vận chuyển"
+                />
+              </Popconfirm>
+            )}
+            {availableActions.includes('markReturned') && (
+              <Button
+                type="text"
+                icon={<SyncOutlined />}
+                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'markReturned')}
+                title="Đánh dấu hoàn hàng"
               />
             )}
           </Space>
@@ -318,7 +360,7 @@ const OrderListView: React.FC = () => {
               placeholder="Trạng thái"
               allowClear
               style={{ width: '100%' }}
-              options={STATUS_OPTIONS}
+              options={ORDER_STATUS_OPTIONS}
               onChange={(v) => handleFilter('status', v)}
             />
           </Col>

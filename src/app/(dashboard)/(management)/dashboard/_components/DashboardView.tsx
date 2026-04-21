@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Row,
   Col,
@@ -38,6 +38,8 @@ import {
   AdminDashboardStatsPojo,
 } from '../types'
 import { dashboardService } from '../_services/dashboard-service'
+import { normalizeOrderStatus } from '@/constants/order-status'
+import { addNewOrderListener } from '@/shared/notifications/admin-notification-events'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -60,24 +62,32 @@ const formatNumber = (value: number | undefined) => {
 /** Map order status → color */
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'orange',
-  CONFIRMED: 'blue',
-  PROCESSING: 'cyan',
-  SHIPPED: 'geekblue',
-  DELIVERED: 'green',
-  CANCELLED: 'red',
+  PAYMENT_STARTED: 'gold',
+  PAYMENT_FAILED: 'volcano',
+  PAYMENT_CANCELLED: 'red',
+  PAID_UNCONFIRMED: 'cyan',
+  PAID_CONFIRMED: 'blue',
+  DELIVERY_ON_ROUTE: 'geekblue',
+  DELIVERY_COMPLETE: 'green',
+  DELIVERY_CANCELLED: 'red',
   RETURNED: 'purple',
   DELIVERY_FAILED: 'volcano',
+  REJECTED: 'magenta',
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Chờ xác nhận',
-  CONFIRMED: 'Đã xác nhận',
-  PROCESSING: 'Đang xử lý',
-  SHIPPED: 'Đã giao cho đơn vị vận chuyển',
-  DELIVERED: 'Giao hàng thành công',
-  CANCELLED: 'Đã hủy',
-  RETURNED: 'Trả hàng',
+  PENDING: 'Chờ thanh toán',
+  PAYMENT_STARTED: 'Đang thanh toán',
+  PAYMENT_FAILED: 'Thanh toán thất bại',
+  PAYMENT_CANCELLED: 'Hủy thanh toán',
+  PAID_UNCONFIRMED: 'Đã thanh toán, chờ duyệt',
+  PAID_CONFIRMED: 'Đã duyệt đơn',
+  DELIVERY_ON_ROUTE: 'Đang giao hàng',
+  DELIVERY_COMPLETE: 'Giao thành công',
   DELIVERY_FAILED: 'Giao hàng thất bại',
+  DELIVERY_CANCELLED: 'Thu hồi vận chuyển',
+  RETURNED: 'Hoàn hàng',
+  REJECTED: 'Từ chối đơn',
 }
 
 const DashboardView: React.FC = () => {
@@ -86,7 +96,7 @@ const DashboardView: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
 
-  const fetchStats = async (from?: string, to?: string) => {
+  const fetchStats = useCallback(async (from?: string, to?: string) => {
     setLoading(true)
     setError(null)
     try {
@@ -97,12 +107,27 @@ const DashboardView: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     // Default: last 30 days
     fetchStats()
-  }, [])
+  }, [fetchStats])
+
+  useEffect(() => {
+    const unsubscribe = addNewOrderListener(() => {
+      if (dateRange && dateRange[0] && dateRange[1]) {
+        fetchStats(
+          dateRange[0].format('YYYY-MM-DD'),
+          dateRange[1].format('YYYY-MM-DD'),
+        )
+        return
+      }
+      fetchStats()
+    })
+
+    return unsubscribe
+  }, [dateRange, fetchStats])
 
   const handleDateChange = (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
     setDateRange(dates)
@@ -235,12 +260,13 @@ const DashboardView: React.FC = () => {
                 ) : (
                   <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     {stats.orderStatusBreakdown.map((item: OrderStatusCountPojo) => {
+                      const statusKey = normalizeOrderStatus(item.status)
                       const pct = totalOrders > 0 ? Math.round((item.count / totalOrders) * 100) : 0
                       return (
                         <div key={item.status}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <Tag color={STATUS_COLORS[item.status] ?? 'default'}>
-                              {STATUS_LABELS[item.status] ?? item.status}
+                            <Tag color={STATUS_COLORS[statusKey] ?? 'default'}>
+                              {STATUS_LABELS[statusKey] ?? item.status}
                             </Tag>
                             <Text strong>{formatNumber(item.count)} đơn</Text>
                           </div>

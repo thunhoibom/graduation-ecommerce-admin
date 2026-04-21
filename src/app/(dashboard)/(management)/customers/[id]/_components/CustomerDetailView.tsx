@@ -23,21 +23,9 @@ import {
   type AddressPojo,
   type CustomerOrderPojo,
 } from '@/services/rest-api/app-api/customers/customer-service'
+import { ORDER_STATUS_CONFIG, normalizeOrderStatus } from '@/constants/order-status'
 
 const { Title, Text, Paragraph } = Typography
-
-// ── Order Status Config ───────────────────────────────────────────
-
-const ORDER_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING:             { color: 'orange',     label: 'Chờ xác nhận' },
-  CONFIRMED:           { color: 'blue',       label: 'Đã xác nhận' },
-  PREPARING:           { color: 'processing', label: 'Đang chuẩn bị' },
-  SHIPPED:             { color: 'cyan',       label: 'Đã giao vận' },
-  DELIVERY_IN_PROGRESS:{ color: 'purple',     label: 'Đang giao' },
-  DELIVERY_COMPLETE:   { color: 'green',     label: 'Hoàn tất' },
-  CANCELLED:           { color: 'red',        label: 'Đã hủy' },
-  REJECTED:            { color: 'default',   label: 'Từ chối' },
-}
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '—'
@@ -125,7 +113,8 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
       key: 'status',
       width: 130,
       render: (status: string) => {
-        const cfg = ORDER_STATUS_CONFIG[status ?? ''] ?? { color: 'default', label: status ?? '—' }
+        const key = normalizeOrderStatus(status)
+        const cfg = ORDER_STATUS_CONFIG[key] ?? { color: 'default', label: status ?? '—' }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
     },

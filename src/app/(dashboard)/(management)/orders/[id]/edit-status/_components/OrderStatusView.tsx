@@ -22,48 +22,31 @@ import {
   confirmOrder,
   rejectOrder,
   completeOrder,
-  cancelOrder,
+  handoverOrderToCarrier,
+  markOrderDeliveryFailed,
+  markOrderDeliveryCancelled,
+  markOrderReturned,
   updateOrder,
   type OrderPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
+import {
+  ACTIONS_BY_STATUS,
+  ORDER_STATUS_CONFIG,
+  ORDER_STATUS_PIPELINE,
+  TERMINAL_ORDER_STATUSES,
+  normalizeOrderStatus,
+  type OrderStatusAction,
+} from '@/constants/order-status'
 
 const { Title, Text, Paragraph } = Typography
 
-// ── Status pipeline ──────────────────────────────────────────────
-
-const PIPELINE = [
-  { key: 'PENDING',           label: 'Chờ thanh toán',     icon: <ClockCircleOutlined />,      color: 'gold' },
-  { key: 'PAID_UNCONFIRMED',  label: 'Đợi xác nhận',       icon: <ExclamationCircleOutlined />,color: 'cyan' },
-  { key: 'PAID_CONFIRMED',    label: 'Đã xác nhận',         icon: <CheckCircleOutlined />,      color: 'blue' },
-  { key: 'PROCESSING',        label: 'Đang xử lý',         icon: <SyncOutlined />,             color: 'processing' },
-  { key: 'SHIPPED',           label: 'Đang giao hàng',     icon: <CarOutlined />,              color: 'geekblue' },
-  { key: 'DELIVERY_COMPLETE', label: 'Hoàn tất',           icon: <CheckCircleOutlined />,      color: 'green' },
-]
-
-const TERMINAL = ['REJECTED', 'ADMIN_CANCELLED', 'CANCELLED', 'RETURNED', 'DELIVERY_FAILED', 'PAYMENT_CANCELLED', 'PAYMENT_FAILED']
-
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  // Nhóm khởi tạo & Thanh toán
-  PENDING:           { color: 'gold',      label: 'Chờ thanh toán' },
-  PAYMENT_STARTED:   { color: 'gold',      label: 'Đang thanh toán' },
-  PAYMENT_CANCELLED: { color: 'red',       label: 'Hủy thanh toán' },
-  PAYMENT_FAILED:    { color: 'red',       label: 'Thanh toán lỗi' },
-
-  // Nhóm xử lý
-  PAID_UNCONFIRMED:  { color: 'cyan',      label: 'Đợi xác nhận' },
-  PAID_CONFIRMED:    { color: 'blue',      label: 'Đã xác nhận' },
-  CONFIRMED:         { color: 'blue',      label: 'Đã xác nhận' },
-  PROCESSING:        { color: 'processing',label: 'Đang xử lý' },
-  SHIPPED:           { color: 'geekblue',  label: 'Đang giao hàng' },
-
-  // Nhóm kết thúc
-  DELIVERY_COMPLETE: { color: 'green',     label: 'Đã hoàn tất' },
-  DELIVERED:         { color: 'green',     label: 'Đã giao hàng' },
-  REJECTED:          { color: 'volcano',   label: 'Đã từ chối' },
-  ADMIN_CANCELLED:   { color: 'red',       label: 'Admin đã hủy' },
-  CANCELLED:         { color: 'red',       label: 'Đã hủy' },
-  RETURNED:          { color: 'purple',    label: 'Trả hàng' },
-  DELIVERY_FAILED:   { color: 'volcano',   label: 'Giao hàng lỗi' },
+const STEP_ICON_MAP: Record<string, React.ReactNode> = {
+  PENDING: <ClockCircleOutlined />,
+  PAYMENT_STARTED: <ClockCircleOutlined />,
+  PAID_UNCONFIRMED: <ExclamationCircleOutlined />,
+  PAID_CONFIRMED: <CheckCircleOutlined />,
+  DELIVERY_ON_ROUTE: <CarOutlined />,
+  DELIVERY_COMPLETE: <CheckCircleOutlined />,
 }
 
 const formatVND = (value: number | undefined) => {
@@ -93,14 +76,15 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
     { revalidateOnMount: true },
   )
 
-  const s = order?.status?.toUpperCase().replace(/[\s,]+/g, '_') || 'PENDING'
-  const currentIdx = PIPELINE.findIndex((p) => p.key === s)
-  const isTerminal = TERMINAL.includes(s)
+  const s = normalizeOrderStatus(order?.status)
+  const currentIdx = ORDER_STATUS_PIPELINE.findIndex((statusKey) => statusKey === s)
+  const isTerminal = TERMINAL_ORDER_STATUSES.includes(s)
+  const availableActions = ACTIONS_BY_STATUS[s] ?? []
 
   // ── Action handlers ──────────────────────────────────────────
 
   const handleAction = async (
-    action: 'confirm' | 'reject' | 'complete' | 'cancel' | 'updateTracking',
+    action: OrderStatusAction | 'updateTracking',
   ) => {
     setSubmitting(true)
     try {
@@ -122,14 +106,21 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
           await completeOrder(orderId)
           messageApi.success('Đã hoàn tất giao hàng')
           break
-        case 'cancel':
-          if (!reason.trim()) {
-            messageApi.error('Vui lòng nhập lý do hủy')
-            setSubmitting(false)
-            return
-          }
-          await cancelOrder(orderId, reason)
-          messageApi.success('Đã hủy đơn hàng')
+        case 'handover':
+          await handoverOrderToCarrier(orderId)
+          messageApi.success('Đã chuyển trạng thái giao hàng')
+          break
+        case 'deliveryFailed':
+          await markOrderDeliveryFailed(orderId)
+          messageApi.success('Đã đánh dấu giao thất bại')
+          break
+        case 'deliveryCancelled':
+          await markOrderDeliveryCancelled(orderId, reason)
+          messageApi.success('Đã đánh dấu thu hồi giao hàng')
+          break
+        case 'markReturned':
+          await markOrderReturned(orderId, reason)
+          messageApi.success('Đã cập nhật trạng thái hoàn hàng')
           break
         case 'updateTracking':
           if (!reason.trim()) {
@@ -165,7 +156,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
     )
   }
 
-  const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
+  const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
 
   return (
     <>
@@ -212,9 +203,9 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
               <Steps
                 current={currentIdx >= 0 ? currentIdx : 0}
                 size="small"
-                items={PIPELINE.map((step, idx) => ({
-                  title: step.label,
-                  icon: step.icon,
+                items={ORDER_STATUS_PIPELINE.map((statusKey, idx) => ({
+                  title: ORDER_STATUS_CONFIG[statusKey]?.label ?? statusKey,
+                  icon: STEP_ICON_MAP[statusKey],
                   status: idx < currentIdx
                     ? 'finish'
                     : idx === currentIdx
@@ -228,7 +219,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
 
               {/* Action panel */}
               <div>
-                {(s === 'PENDING' || s === 'PAID_UNCONFIRMED') && (
+                {availableActions.includes('confirm') && (
                   <>
                     <Alert
                       message="Xác nhận hoặc từ chối đơn hàng"
@@ -273,32 +264,79 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                   </>
                 )}
 
-                {(s === 'CONFIRMED' || s === 'PAID_CONFIRMED' || s === 'PROCESSING') && (
+                {availableActions.includes('handover') && (
                   <>
                     <Alert
-                      message="Hoàn tất giao hàng"
-                      description="Đánh dấu đơn hàng đã giao thành công đến khách hàng và thu tiền (đối với COD). Thao tác này không thể hoàn tác."
+                      message="Bàn giao cho đơn vị vận chuyển"
+                      description="Đơn hàng chuyển sang trạng thái đang giao hàng. Sau bước này có thể đánh dấu giao thành công hoặc giao thất bại."
                       type="warning"
                       showIcon
                       style={{ marginBottom: 16 }}
                     />
                     <Button
                       type="primary"
-                      icon={<CheckCircleOutlined />}
-                      onClick={() => handleAction('complete')}
+                      icon={<SyncOutlined />}
+                      onClick={() => handleAction('handover')}
                       loading={submitting}
-                      style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
                     >
-                      Hoàn tất giao hàng
+                      Bàn giao vận chuyển
                     </Button>
-                    <Divider />
-                    <Text type="secondary">
-                      Để cập nhật mã vận đơn hoặc ghi chú nội bộ, hãy sử dụng các ô nhập liệu bên dưới.
-                    </Text>
                   </>
                 )}
 
-                {(s === 'DELIVERED' || s === 'DELIVERY_COMPLETE') && (
+                {availableActions.includes('complete') && (
+                  <>
+                    <Alert
+                      message="Đang trong quá trình giao"
+                      description="Chọn kết quả giao hàng phù hợp để cập nhật trạng thái đơn."
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                    />
+                    <Space>
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={() => handleAction('complete')}
+                        loading={submitting}
+                        style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                      >
+                        Giao thành công
+                      </Button>
+                      <Button
+                        danger
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => handleAction('deliveryFailed')}
+                        loading={submitting}
+                      >
+                        Giao thất bại
+                      </Button>
+                      <Button
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => handleAction('deliveryCancelled')}
+                        loading={submitting}
+                      >
+                        Thu hồi giao hàng
+                      </Button>
+                    </Space>
+                  </>
+                )}
+
+                {availableActions.includes('markReturned') && (
+                  <Alert
+                    message="Hoàn hàng về kho"
+                    description="Đơn đã kết thúc giao vận nhưng phát sinh hoàn hàng. Nhấn nút dưới để chuyển trạng thái Returned."
+                    type="warning"
+                    showIcon
+                    action={
+                      <Button size="small" onClick={() => handleAction('markReturned')} loading={submitting}>
+                        Đánh dấu hoàn hàng
+                      </Button>
+                    }
+                  />
+                )}
+
+                {(s === 'DELIVERY_COMPLETE') && (
                   <Alert
                     message="Đơn hàng đã hoàn tất"
                     description="Đơn hàng đã được giao thành công và thu tiền. Không cần thực hiện thêm thao tác nào."
@@ -317,13 +355,13 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
               <Alert
                 message={`Đơn hàng đã ở trạng thái kết thúc: ${cfg.label}`}
                 description={
-                  status === 'CANCELLED'
-                    ? 'Đơn hàng đã bị hủy. Hệ thống sẽ giải phóng tồn kho và hoàn tiền nếu đã thanh toán.'
-                    : status === 'RETURNED'
+                  s === 'RETURNED'
                       ? 'Đơn hàng đã được trả lại.'
-                      : 'Giao hàng thất bại. Vui lòng kiểm tra lại thông tin vận chuyển.'
+                    : s === 'PAYMENT_FAILED' || s === 'PAYMENT_CANCELLED'
+                      ? 'Đơn hàng kết thúc ở bước thanh toán, không thể xử lý tiếp.'
+                      : 'Đơn hàng kết thúc ở trạng thái từ chối.'
                 }
-                type={status === 'CANCELLED' ? 'error' : status === 'DELIVERY_FAILED' ? 'warning' : 'info'}
+                type={s === 'PAYMENT_FAILED' || s === 'PAYMENT_CANCELLED' ? 'error' : 'info'}
                 showIcon
               />
             </Card>
