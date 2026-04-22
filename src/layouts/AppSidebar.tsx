@@ -20,6 +20,10 @@ import {
   ShopOutlined,
   SwapOutlined,
   AuditOutlined,
+  CreditCardOutlined,
+  DollarCircleOutlined,
+  WarningOutlined,
+  FileDoneOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { paths } from '@/routes/paths'
@@ -152,6 +156,33 @@ const menuItems: MenuProps['items'] = [
         key: paths.inventory.stockCounts,
         icon: <AuditOutlined />,
         label: <Link href={paths.inventory.stockCounts}>Kiểm kê định kỳ</Link>,
+      },
+    ],
+  },
+  {
+    key: 'finance',
+    icon: <DollarCircleOutlined />,
+    label: 'Tài chính & Đối soát',
+    children: [
+      {
+        key: paths.finance.failedPayments,
+        icon: <WarningOutlined />,
+        label: <Link href={paths.finance.failedPayments}>Đơn lỗi thanh toán</Link>,
+      },
+      {
+        key: paths.finance.refunds,
+        icon: <CreditCardOutlined />,
+        label: <Link href={paths.finance.refunds}>Hoàn tiền & Retry queue</Link>,
+      },
+      {
+        key: paths.finance.reconciliation,
+        icon: <FileDoneOutlined />,
+        label: <Link href={paths.finance.reconciliation}>Đối soát giao dịch</Link>,
+      },
+      {
+        key: paths.finance.settlements,
+        icon: <DollarCircleOutlined />,
+        label: <Link href={paths.finance.settlements}>Chốt số kỳ kế toán</Link>,
       },
     ],
   },

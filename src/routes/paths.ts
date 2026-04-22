@@ -86,4 +86,13 @@ export const paths = {
     transfers: '/inventory/transfers',
     stockCounts: '/inventory/stock-counts',
   },
+
+  // Finance
+  finance: {
+    root: '/finance',
+    failedPayments: '/finance/failed-payments',
+    refunds: '/finance/refunds',
+    reconciliation: '/finance/reconciliation',
+    settlements: '/finance/settlements',
+  },
 }
