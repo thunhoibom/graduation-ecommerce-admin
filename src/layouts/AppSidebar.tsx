@@ -45,6 +45,23 @@ const menuItems: MenuProps['items'] = [
     label: <Link href={paths.dashboard.root}>Dashboard</Link>,
   },
   {
+    key: 'orders',
+    icon: <ShoppingCartOutlined />,
+    label: 'Đơn hàng',
+    children: [
+      {
+        key: paths.orders.list,
+        icon: <ShoppingCartOutlined />,
+        label: <Link href={paths.orders.list}>Danh sách đơn hàng</Link>,
+      },
+      {
+        key: paths.returns.list,
+        icon: <UndoOutlined />,
+        label: <Link href={paths.returns.list}>Trả hàng / Hoàn tiền</Link>,
+      },
+    ],
+  },
+  {
     key: 'products',
     icon: <ShoppingOutlined />,
     label: 'Sản phẩm',
@@ -55,38 +72,9 @@ const menuItems: MenuProps['items'] = [
         label: <Link href={paths.products.list}>Danh sách sản phẩm</Link>,
       },
       {
-        key: paths.products.new,
-        icon: <ShoppingOutlined />,
-        label: <Link href={paths.products.new}>Thêm sản phẩm mới</Link>,
-      },
-    ],
-  },
-  {
-    key: 'categories',
-    icon: <AppstoreOutlined />,
-    label: <Link href={paths.categories.list}>Danh mục sản phẩm</Link>,
-  },
-  {
-    key: 'orders',
-    icon: <ShoppingCartOutlined />,
-    label: 'Đơn hàng',
-    children: [
-      {
-        key: paths.orders.list,
-        icon: <ShoppingCartOutlined />,
-        label: <Link href={paths.orders.list}>Danh sách đơn hàng</Link>,
-      },
-    ],
-  },
-  {
-    key: 'returns',
-    icon: <UndoOutlined />,
-    label: 'Trả hàng / Hoàn tiền',
-    children: [
-      {
-        key: paths.returns.list,
-        icon: <UndoOutlined />,
-        label: <Link href={paths.returns.list}>Danh sách yêu cầu</Link>,
+        key: paths.categories.list,
+        icon: <AppstoreOutlined />,
+        label: <Link href={paths.categories.list}>Danh mục sản phẩm</Link>,
       },
     ],
   },
@@ -104,11 +92,6 @@ const menuItems: MenuProps['items'] = [
         key: paths.discounts.list,
         icon: <GiftOutlined />,
         label: <Link href={paths.discounts.list}>Danh sách mã</Link>,
-      },
-      {
-        key: paths.discounts.new,
-        icon: <GiftOutlined />,
-        label: <Link href={paths.discounts.new}>Thêm mã mới</Link>,
       },
       {
         key: paths.discounts.rules,
