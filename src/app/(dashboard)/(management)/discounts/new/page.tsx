@@ -1,6 +1,9 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import DiscountFormPage from '../_components/DiscountFormPage'
+import dynamic from 'next/dynamic'
+
+const DiscountFormPage = dynamic(() => import('../_components/DiscountFormPage'), {
+})
 
 export const metadata: Metadata = {
   title: 'Thêm mã giảm giá | Mono Studio Admin',

@@ -12,9 +12,14 @@ import {
   UndoOutlined,
   TeamOutlined,
   GiftOutlined,
+  NodeIndexOutlined,
   GlobalOutlined,
   PictureOutlined,
   SettingOutlined,
+  InboxOutlined,
+  ShopOutlined,
+  SwapOutlined,
+  AuditOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { paths } from '@/routes/paths'
@@ -101,6 +106,11 @@ const menuItems: MenuProps['items'] = [
         icon: <GiftOutlined />,
         label: <Link href={paths.discounts.new}>Thêm mã mới</Link>,
       },
+      {
+        key: paths.discounts.rules,
+        icon: <NodeIndexOutlined />,
+        label: <Link href={paths.discounts.rules}>Rule khuyến mãi</Link>,
+      },
     ],
   },
   {
@@ -112,6 +122,38 @@ const menuItems: MenuProps['items'] = [
     key: 'media',
     icon: <PictureOutlined />,
     label: <Link href={paths.media.list}>Thư viện media</Link>,
+  },
+  {
+    key: 'inventory',
+    icon: <InboxOutlined />,
+    label: 'Tồn kho',
+    children: [
+      {
+        key: paths.inventory.stockAdjustments,
+        icon: <InboxOutlined />,
+        label: <Link href={paths.inventory.stockAdjustments}>Điều chỉnh tồn</Link>,
+      },
+      {
+        key: paths.inventory.suppliers,
+        icon: <ShopOutlined />,
+        label: <Link href={paths.inventory.suppliers}>Nhà cung cấp</Link>,
+      },
+      {
+        key: paths.inventory.purchaseOrders,
+        icon: <ShoppingCartOutlined />,
+        label: <Link href={paths.inventory.purchaseOrders}>Purchase Orders</Link>,
+      },
+      {
+        key: paths.inventory.transfers,
+        icon: <SwapOutlined />,
+        label: <Link href={paths.inventory.transfers}>Chuyển kho nội bộ</Link>,
+      },
+      {
+        key: paths.inventory.stockCounts,
+        icon: <AuditOutlined />,
+        label: <Link href={paths.inventory.stockCounts}>Kiểm kê định kỳ</Link>,
+      },
+    ],
   },
   {
     key: 'settings',

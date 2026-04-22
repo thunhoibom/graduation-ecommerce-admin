@@ -73,6 +73,26 @@ export type PageResponse<T> = {
   pageSize: number
 }
 
+export type ProductAuditEntityType = 'PRODUCT' | 'VARIANT'
+
+export type ProductAuditLogPojo = {
+  id: number
+  occurredAt: string
+  actorUsername?: string
+  actorUserId?: number
+  action: string
+  entityType: ProductAuditEntityType
+  entityId: number
+  productId?: number
+  variantId?: number
+  entityCode?: string
+  summary?: string
+  beforeSnapshot?: string
+  afterSnapshot?: string
+  requestSource?: string
+  correlationId?: string
+}
+
 export type ProductSearchParams = {
   name?: string
   barcode?: string
@@ -92,6 +112,19 @@ export type VariantSearchParams = {
   size?: string
   color?: string
   active?: boolean
+  pageIndex?: number
+  pageSize?: number
+}
+
+export type ProductAuditSearchParams = {
+  entityType?: ProductAuditEntityType
+  entityId?: number
+  productId?: number
+  variantId?: number
+  action?: string
+  actor?: string
+  from?: string
+  to?: string
   pageIndex?: number
   pageSize?: number
 }
@@ -192,11 +225,19 @@ export const IMPORT_VARIANTS_URL = '/api/data/product-variants/import'
 export const BULK_ACTIVATE_VARIANTS_URL = '/api/data/product-variants/bulk-activate'
 export const BULK_DEACTIVATE_VARIANTS_URL = '/api/data/product-variants/bulk-deactivate'
 export const BULK_DELETE_VARIANTS_URL = '/api/data/product-variants/bulk-delete'
+export const BULK_UPDATE_VARIANTS_URL = '/api/data/product-variants/bulk-update'
 
 export type BulkOperationResult = {
   successCount: number
   errorCount: number
   errors: string[] | null
+}
+
+export type VariantBulkUpdateRequest = {
+  ids: number[]
+  priceModifier?: number
+  currentStock?: number
+  active?: boolean
 }
 
 export type ProductCsvImportResult = {
@@ -296,3 +337,34 @@ export const bulkDeactivateVariants = (ids: number[]) =>
 
 export const bulkDeleteVariants = (ids: number[]) =>
   variantService.post<BulkOperationResult>('/bulk-delete', ids)
+
+export const bulkUpdateVariants = (payload: VariantBulkUpdateRequest) =>
+  variantService.post<BulkOperationResult>('/bulk-update', payload)
+
+// ─────────────────────────────────────────────────────────────────
+// Product audit logs
+// ─────────────────────────────────────────────────────────────────
+
+export const searchProductAuditLogs = (params: ProductAuditSearchParams) => {
+  return appApiIns.get<PageResponse<ProductAuditLogPojo[]>>('/api/data/product-audit-logs', { params })
+}
+
+export const getProductAuditLogsByProductId = (
+  productId: number,
+  params?: { pageIndex?: number; pageSize?: number }
+) => {
+  return appApiIns.get<PageResponse<ProductAuditLogPojo[]>>(
+    `/api/data/product-audit-logs/products/${productId}`,
+    { params }
+  )
+}
+
+export const getProductAuditLogsByVariantId = (
+  variantId: number,
+  params?: { pageIndex?: number; pageSize?: number }
+) => {
+  return appApiIns.get<PageResponse<ProductAuditLogPojo[]>>(
+    `/api/data/product-audit-logs/variants/${variantId}`,
+    { params }
+  )
+}

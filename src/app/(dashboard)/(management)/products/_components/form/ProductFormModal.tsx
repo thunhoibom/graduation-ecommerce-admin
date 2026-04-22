@@ -111,8 +111,8 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
           description: editing.description,
           price: editing.price,
           status: editing.status || 'DRAFT',
-          currentStock: editing.currentStock,
-          criticalStock: editing.criticalStock,
+          currentStock: editing.currentStock ?? 0,
+          criticalStock: editing.criticalStock ?? 0,
           categoryCode: editing.category?.code,
           images: editing.images ?? [],
         })
@@ -127,7 +127,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       } else {
         form.resetFields()
-        form.setFieldsValue({ status: 'DRAFT' })
+        form.setFieldsValue({ status: 'DRAFT', currentStock: 0, criticalStock: 0 })
         setFileList([])
       }
     }
@@ -160,6 +160,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
+      const { currentStock: _currentStock, criticalStock: _criticalStock, ...safeValues } = values
 
       // Extract ImagePojo objects from the fileList state or form values
       const imagePojos = fileList
@@ -168,10 +169,10 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       // Map categoryCode to category object
       const payload = {
-        ...values,
+        ...safeValues,
         images: imagePojos,
-        category: values.categoryCode
-          ? { code: values.categoryCode, name: '' }
+        category: safeValues.categoryCode
+          ? { code: safeValues.categoryCode, name: '' }
           : undefined,
       }
       await onSubmit(payload)
@@ -279,12 +280,12 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <Row gutter={[16, 0]}>
               <Col span={12}>
                 <Form.Item name="currentStock" label="Tồn kho hiện tại">
-                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" disabled />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="criticalStock" label="Ngưỡng tồn kho thấp">
-                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" disabled />
                 </Form.Item>
               </Col>
             </Row>

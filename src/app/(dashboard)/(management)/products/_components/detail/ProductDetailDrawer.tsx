@@ -125,7 +125,7 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({
           </Text>
         </Descriptions.Item>
         <Descriptions.Item label="Quản lý tồn kho">
-          <Space direction="vertical" size={2}>
+          <Space orientation="vertical" size={2}>
             <div>
               Tồn thực tế: <Text strong>{product.currentStock ?? 0}</Text>
             </div>

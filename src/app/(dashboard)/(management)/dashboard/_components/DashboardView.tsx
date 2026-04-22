@@ -242,6 +242,46 @@ const DashboardView: React.FC = () => {
             </Col>
           </Row>
 
+          {/* Inventory process KPI cards */}
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={12} lg={6}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Statistic
+                  title={<Text type="secondary">PO đang mở</Text>}
+                  value={stats?.inventoryKpis?.openPurchaseOrders ?? 0}
+                  formatter={(v) => <span style={{ color: '#5856d6' }}>{formatNumber(Number(v))}</span>}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Statistic
+                  title={<Text type="secondary">Transfer chờ duyệt</Text>}
+                  value={stats?.inventoryKpis?.pendingTransferApprovals ?? 0}
+                  formatter={(v) => <span style={{ color: '#fa8c16' }}>{formatNumber(Number(v))}</span>}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Statistic
+                  title={<Text type="secondary">Kiểm kê chờ approve</Text>}
+                  value={stats?.inventoryKpis?.pendingStockCountApprovals ?? 0}
+                  formatter={(v) => <span style={{ color: '#cf1322' }}>{formatNumber(Number(v))}</span>}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Statistic
+                  title={<Text type="secondary">Variance chờ post</Text>}
+                  value={stats?.inventoryKpis?.approvedStockCountsToPost ?? 0}
+                  formatter={(v) => <span style={{ color: '#722ed1' }}>{formatNumber(Number(v))}</span>}
+                />
+              </Card>
+            </Col>
+          </Row>
+
           {/* Order Status Breakdown */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} lg={8}>

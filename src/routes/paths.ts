@@ -58,6 +58,7 @@ export const paths = {
     list: '/discounts/list',
     new: '/discounts/new',
     edit: (id: string) => `/discounts/${id}`,
+    rules: '/discounts/rules',
   },
 
   // Shipping
@@ -75,5 +76,14 @@ export const paths = {
   // Settings
   settings: {
     root: '/settings',
+  },
+
+  // Inventory
+  inventory: {
+    stockAdjustments: '/inventory/stock-adjustments',
+    suppliers: '/inventory/suppliers',
+    purchaseOrders: '/inventory/purchase-orders',
+    transfers: '/inventory/transfers',
+    stockCounts: '/inventory/stock-counts',
   },
 }

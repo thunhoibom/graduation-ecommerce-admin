@@ -2,17 +2,18 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 
-const ProductListView = dynamic(() => import('../_components/list/ProductListView'), {
+const PromotionRulesView = dynamic(() => import('./_components/PromotionRulesView'), {
 })
 
 export const metadata: Metadata = {
-  title: 'Danh sách sản phẩm | Mono Studio Admin',
+  title: 'Promotion Rules | Mono Studio Admin',
 }
 
-export default function ProductsListPage() {
+export default function PromotionRulesPage() {
   return (
     <Suspense fallback={<div style={{ padding: 24 }}>Đang tải...</div>}>
-      <ProductListView />
+      <PromotionRulesView />
     </Suspense>
   )
 }
+

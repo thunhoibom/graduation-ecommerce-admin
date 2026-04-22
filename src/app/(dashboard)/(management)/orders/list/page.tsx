@@ -1,6 +1,9 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import OrderListView from '../_components/OrderListView'
+import dynamic from 'next/dynamic'
+
+const OrderListView = dynamic(() => import('../_components/OrderListView'), {
+})
 
 export const metadata: Metadata = {
   title: 'Danh sách đơn hàng | Mono Studio Admin',

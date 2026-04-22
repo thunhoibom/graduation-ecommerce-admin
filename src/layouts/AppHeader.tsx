@@ -70,7 +70,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ collapsed, setCollapsed }) => {
           style={{ margin: '16px 0' }}
         />
       ) : (
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
           {notifications.map((item) => (
             <Button
               key={item.payload.eventId || `${item.payload.orderId}-${item.receivedAt}`}

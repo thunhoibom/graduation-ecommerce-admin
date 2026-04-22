@@ -33,4 +33,10 @@ export interface AdminDashboardStatsPojo {
   revenueByPeriod: RevenueStatPojo[]
   topProducts: TopProductPojo[]
   lowStockAlerts: LowStockAlertPojo[]
+  inventoryKpis?: {
+    openPurchaseOrders: number
+    pendingTransferApprovals: number
+    pendingStockCountApprovals: number
+    approvedStockCountsToPost: number
+  }
 }

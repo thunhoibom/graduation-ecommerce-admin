@@ -59,6 +59,9 @@ const ProductListView: React.FC = () => {
   // Bulk operations modal state
   const [bulkModalOpen, setBulkModalOpen] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [selectedProducts, setSelectedProducts] = useState<
+    { id: number; barcode: string; name: string }[]
+  >([])
 
   // All product IDs (for "select all" when bulk modal is opened)
   const allProductIds = tableData.map((p) => p.id!).filter(Boolean)
@@ -160,6 +163,7 @@ const ProductListView: React.FC = () => {
 
   const handleBulkComplete = useCallback(() => {
     setSelectedRowKeys([])
+    setSelectedProducts([])
     mutate()
   }, [mutate])
 
@@ -204,7 +208,10 @@ const ProductListView: React.FC = () => {
           <Space>
             <Button
               size="small"
-              onClick={() => setSelectedRowKeys([])}
+              onClick={() => {
+                setSelectedRowKeys([])
+                setSelectedProducts([])
+              }}
             >
               Bỏ chọn
             </Button>
@@ -229,7 +236,18 @@ const ProductListView: React.FC = () => {
         pageSize={Number(queryParams.pageSize) || 20}
         rowSelection={{
           selectedRowKeys,
-          onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+          onChange: (keys: React.Key[], rows: ProductPojo[]) => {
+            setSelectedRowKeys(keys)
+            setSelectedProducts(
+              rows
+                .filter((row) => row.id && row.barcode)
+                .map((row) => ({
+                  id: row.id as number,
+                  barcode: row.barcode,
+                  name: row.name,
+                }))
+            )
+          },
         }}
         onTableChange={(page, size) => {
           handleTableChange(page, size)
@@ -263,6 +281,7 @@ const ProductListView: React.FC = () => {
         open={bulkModalOpen}
         onClose={() => setBulkModalOpen(false)}
         selectedIds={selectedRowKeys as number[]}
+        selectedProducts={selectedProducts}
         allProductIds={allProductIds}
         selectedVariantIds={[]}
         categories={categories}

@@ -53,8 +53,8 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
         barcode: productData.barcode,
         description: productData.description,
         price: productData.price,
-        currentStock: productData.currentStock,
-        criticalStock: productData.criticalStock,
+        currentStock: productData.currentStock ?? 0,
+        criticalStock: productData.criticalStock ?? 0,
         categoryCode: productData.category?.code,
       })
     }
@@ -64,11 +64,13 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
     setSubmitting(true)
     try {
       const payload: ProductPojo = {
-        ...values,
-        category: values.categoryCode
+        ...(values as ProductPojo),
+        category: (values as Record<string, unknown>).categoryCode
           ? { code: values.categoryCode as string, name: '' }
           : undefined,
       } as ProductPojo
+      delete (payload as Partial<ProductPojo>).currentStock
+      delete (payload as Partial<ProductPojo>).criticalStock
 
       if (isEditMode) {
         await updateProduct(Number(productId), payload)
@@ -198,10 +200,10 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
             <Col xs={24} lg={8}>
               <Card title="Quản lý tồn kho" style={{ marginBottom: 16 }}>
                 <Form.Item name="currentStock" label="Tồn kho hiện tại">
-                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" disabled />
                 </Form.Item>
                 <Form.Item name="criticalStock" label="Ngưỡng cảnh báo">
-                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" disabled />
                 </Form.Item>
               </Card>
 

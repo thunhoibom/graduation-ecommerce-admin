@@ -9,6 +9,10 @@ import {
   Typography,
   Upload,
   Select,
+  Form,
+  Input,
+  InputNumber,
+  Switch,
   message,
   Alert,
   Table,
@@ -36,17 +40,27 @@ import {
   bulkActivateVariants,
   bulkDeactivateVariants,
   bulkDeleteVariants,
+  bulkUpdateVariants,
   type BulkOperationResult,
   type ProductCsvImportResult,
 } from '@/services/rest-api/app-api/products/product-service'
+import { createPromotionRule } from '@/services/rest-api/app-api/promotions/promotion-rule-service'
 
 const { Text, Title } = Typography
+
+type ProductDiscountTarget = {
+  id: number
+  barcode: string
+  name: string
+}
 
 interface BulkOperationsModalProps {
   open: boolean
   onClose: () => void
   /** Selected product IDs for bulk actions (from table checkbox) */
   selectedIds: number[]
+  /** Selected products with barcode for discount rule creation */
+  selectedProducts: ProductDiscountTarget[]
   /** All product IDs for "select all" */
   allProductIds: number[]
   /** Selected variant IDs for bulk actions */
@@ -60,8 +74,8 @@ interface BulkOperationsModalProps {
 // ─── Product CSV ────────────────────────────────────────────────
 
 const PRODUCT_CSV_TEMPLATE = [
-  ['barcode', 'name', 'description', 'price', 'currentStock', 'criticalStock', 'categoryCode', 'status'],
-  ['SKU001', 'Tên sản phẩm', 'Mô tả ngắn', '199000', '10', '3', 'CAT001', 'DRAFT'],
+  ['barcode', 'name', 'description', 'price', 'categoryCode', 'status'],
+  ['SKU001', 'Tên sản phẩm', 'Mô tả ngắn', '199000', 'CAT001', 'DRAFT'],
 ]
 
 // ─── Variant CSV ────────────────────────────────────────────────
@@ -77,13 +91,16 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
   open,
   onClose,
   selectedIds,
+  selectedProducts,
   selectedVariantIds,
   productBarcode,
   categories,
   onBulkComplete,
 }) => {
   const [messageApi, contextHolder] = message.useMessage()
-  const [tab, setTab] = useState<'products' | 'variants'>('products')
+  const [discountForm] = Form.useForm()
+  const [variantBulkEditForm] = Form.useForm()
+  const [tab, setTab] = useState<'products' | 'product-discount' | 'variants'>('products')
   const [uploading, setUploading] = useState(false)
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [bulkResult, setBulkResult] = useState<BulkOperationResult | null>(null)
@@ -126,6 +143,68 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
     [selectedIds, messageApi, onBulkComplete],
   )
 
+  const handleCreateProductDiscountRule = useCallback(async () => {
+    if (selectedProducts.length === 0) {
+      messageApi.warning('Chưa có sản phẩm được chọn để áp dụng giảm giá.')
+      return
+    }
+
+    try {
+      const values = await discountForm.validateFields()
+      const barcodes = selectedProducts
+        .map((product) => product.barcode?.trim())
+        .filter((barcode): barcode is string => Boolean(barcode))
+
+      if (barcodes.length === 0) {
+        messageApi.warning('Không tìm thấy barcode hợp lệ trong danh sách đã chọn.')
+        return
+      }
+
+      const payload = {
+        name: values.ruleName as string,
+        priority: Number(values.priority ?? 100),
+        combinable: Boolean(values.combinable),
+        active: true,
+        conditions: [
+          {
+            factField: 'cart.has_any_product',
+            operator: 'IN' as const,
+            targetValue: barcodes.join(','),
+          },
+        ],
+        actions: [
+          {
+            actionType: values.actionType as 'PERCENTAGE_DISCOUNT' | 'FIXED_DISCOUNT',
+            value: Number(values.actionValue),
+          },
+        ],
+      }
+
+      if (
+        payload.actions[0].actionType === 'PERCENTAGE_DISCOUNT' &&
+        (payload.actions[0].value < 1 || payload.actions[0].value > 100)
+      ) {
+        messageApi.warning('Giảm theo % chỉ hợp lệ trong khoảng 1 đến 100.')
+        return
+      }
+
+      setUploading(true)
+      await createPromotionRule(payload)
+      messageApi.success(
+        `Đã tạo quy tắc giảm giá cho ${barcodes.length} sản phẩm.`
+      )
+      onBulkComplete()
+      discountForm.resetFields()
+    } catch (err) {
+      if ((err as { errorFields?: unknown[] })?.errorFields) {
+        return
+      }
+      messageApi.error('Không thể tạo quy tắc giảm giá')
+    } finally {
+      setUploading(false)
+    }
+  }, [selectedProducts, discountForm, messageApi, onBulkComplete])
+
   // ── Variant bulk action ──────────────────────────────────────
 
   const handleVariantBulkAction = useCallback(
@@ -155,6 +234,63 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
     },
     [selectedVariantIds, messageApi, onBulkComplete],
   )
+
+  const handleVariantBulkEdit = useCallback(async () => {
+    if (selectedVariantIds.length === 0) {
+      messageApi.warning('Chưa chọn biến thể nào để thực hiện thao tác.')
+      return
+    }
+
+    try {
+      const values = await variantBulkEditForm.validateFields()
+      const payload: {
+        ids: number[]
+        priceModifier?: number
+        currentStock?: number
+        active?: boolean
+      } = {
+        ids: selectedVariantIds,
+      }
+
+      if (values.priceModifier !== undefined && values.priceModifier !== null) {
+        payload.priceModifier = Number(values.priceModifier)
+      }
+      if (values.currentStock !== undefined && values.currentStock !== null) {
+        payload.currentStock = Number(values.currentStock)
+      }
+      if (values.activeState === 'ACTIVE') {
+        payload.active = true
+      } else if (values.activeState === 'INACTIVE') {
+        payload.active = false
+      }
+
+      if (
+        payload.priceModifier === undefined &&
+        payload.currentStock === undefined &&
+        payload.active === undefined
+      ) {
+        messageApi.warning('Vui lòng chọn ít nhất một trường cần cập nhật.')
+        return
+      }
+
+      resetResults()
+      setBulkAction('variant_update')
+      setUploading(true)
+      const result = await bulkUpdateVariants(payload)
+      setBulkResult(result)
+      if (result.successCount > 0) {
+        onBulkComplete()
+      }
+    } catch (err) {
+      if ((err as { errorFields?: unknown[] })?.errorFields) {
+        return
+      }
+      messageApi.error('Thao tác thất bại: ' + (err instanceof Error ? err.message : String(err)))
+      setBulkResult({ successCount: 0, errorCount: selectedVariantIds.length, errors: ['Lỗi kết nối server'] })
+    } finally {
+      setUploading(false)
+    }
+  }, [selectedVariantIds, messageApi, onBulkComplete, variantBulkEditForm])
 
   // ── Product CSV Import ──────────────────────────────────────
 
@@ -345,6 +481,91 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
     ),
   }
 
+  const productDiscountTab = {
+    key: 'product-discount',
+    label: 'Giảm giá SP',
+    children: (
+      <div style={{ padding: '8px 0' }}>
+        <Alert
+          type="info"
+          showIcon
+          message={`Đã chọn ${selectedProducts.length} sản phẩm.`}
+          description="Hệ thống sẽ tạo một promotion rule mới, tự áp dụng khi giỏ hàng chứa ít nhất 1 barcode đã chọn."
+          style={{ marginBottom: 16 }}
+        />
+        <Form
+          form={discountForm}
+          layout="vertical"
+          initialValues={{
+            ruleName: `Giảm giá ${selectedProducts.length} sản phẩm`,
+            actionType: 'PERCENTAGE_DISCOUNT',
+            actionValue: 10,
+            priority: 100,
+            combinable: false,
+          }}
+        >
+          <Form.Item
+            name="ruleName"
+            label="Tên chương trình giảm giá"
+            rules={[{ required: true, message: 'Vui lòng nhập tên chương trình' }]}
+          >
+            <Input placeholder="VD: Flash sale nhóm sản phẩm nam" />
+          </Form.Item>
+
+          <Space style={{ width: '100%', gap: 12 }} align="start">
+            <Form.Item
+              name="actionType"
+              label="Kiểu giảm giá"
+              rules={[{ required: true, message: 'Chọn kiểu giảm giá' }]}
+              style={{ minWidth: 220 }}
+            >
+              <Select
+                options={[
+                  { label: 'Giảm theo %', value: 'PERCENTAGE_DISCOUNT' },
+                  { label: 'Giảm số tiền cố định (VND)', value: 'FIXED_DISCOUNT' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item
+              name="actionValue"
+              label="Giá trị"
+              rules={[{ required: true, message: 'Nhập giá trị giảm' }]}
+              style={{ minWidth: 200 }}
+            >
+              <InputNumber min={1} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              name="priority"
+              label="Ưu tiên"
+              rules={[{ required: true, message: 'Nhập độ ưu tiên' }]}
+              style={{ minWidth: 140 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </Space>
+
+          <Form.Item
+            name="combinable"
+            label="Cho phép cộng dồn với rule khác"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+        </Form>
+
+        <Button
+          type="primary"
+          style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+          loading={uploading}
+          disabled={selectedProducts.length === 0}
+          onClick={handleCreateProductDiscountRule}
+        >
+          Tạo rule giảm giá cho sản phẩm đã chọn
+        </Button>
+      </div>
+    ),
+  }
+
   const variantsTab = {
     key: 'variants',
     label: 'Biến thể',
@@ -380,6 +601,50 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
             Xóa ({selectedVariantIds.length})
           </Button>
         </div>
+        <Divider />
+        <Form
+          form={variantBulkEditForm}
+          layout="vertical"
+          initialValues={{ activeState: 'UNCHANGED' }}
+        >
+          <Space style={{ width: '100%' }} align="start" wrap>
+            <Form.Item
+              name="priceModifier"
+              label="Giá modifier"
+              style={{ minWidth: 180 }}
+            >
+              <InputNumber style={{ width: '100%' }} placeholder="Giữ nguyên nếu bỏ trống" />
+            </Form.Item>
+            <Form.Item
+              name="currentStock"
+              label="Tồn kho"
+              style={{ minWidth: 180 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} placeholder="Giữ nguyên nếu bỏ trống" />
+            </Form.Item>
+            <Form.Item
+              name="activeState"
+              label="Trạng thái active"
+              style={{ minWidth: 180 }}
+            >
+              <Select
+                options={[
+                  { label: 'Giữ nguyên', value: 'UNCHANGED' },
+                  { label: 'Kích hoạt', value: 'ACTIVE' },
+                  { label: 'Vô hiệu hóa', value: 'INACTIVE' },
+                ]}
+              />
+            </Form.Item>
+          </Space>
+          <Button
+            type="primary"
+            onClick={handleVariantBulkEdit}
+            loading={uploading && bulkAction === 'variant_update'}
+            style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+          >
+            Cập nhật hàng loạt ({selectedVariantIds.length})
+          </Button>
+        </Form>
         {renderBulkResult()}
       </div>
     ),
@@ -460,7 +725,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
     label: 'Xuất SP',
     children: (
       <div style={{ padding: '8px 0' }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space orientation="vertical" style={{ width: '100%' }}>
           <div>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>Lọc theo danh mục (tùy chọn):</Text>
             <Select
@@ -490,7 +755,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
           </Space>
         </Space>
         <Divider />
-        <Alert type="info" message="Cột: barcode, name, description, price, currentStock, criticalStock, categoryCode, status." />
+        <Alert type="info" message="Cột: barcode, name, description, price, categoryCode, status. (Tồn kho quản lý ở trang Biến thể)" />
       </div>
     ),
   }
@@ -509,7 +774,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
           }
           style={{ marginBottom: 16 }}
         />
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space orientation="vertical" style={{ width: '100%' }}>
           <Space>
             <Button
               type="primary"
@@ -532,6 +797,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
 
   const tabItems = [
     productsTab,
+    productDiscountTab,
     variantsTab,
     productImportTab,
     variantImportTab,
@@ -548,7 +814,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
         onCancel={onClose}
         footer={null}
         width={680}
-        destroyOnClose
+        destroyOnHidden
       >
         <Tabs
           activeKey={tab}

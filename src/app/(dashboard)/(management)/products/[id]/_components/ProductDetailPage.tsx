@@ -1,11 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Tag, Button, Space,
   Spin, Breadcrumb, Row, Col, Statistic, message, Image, Alert,
-  Divider,
+  Divider, Select, DatePicker,
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, DeleteOutlined,
@@ -20,12 +20,29 @@ import {
   getProductById,
   deleteProduct,
   searchVariants,
+  searchProductAuditLogs,
   type ProductPojo,
   type ProductVariantPojo,
-  type PageResponse as VariantPageResponse,
+  type ProductAuditLogPojo,
+  type PageResponse,
 } from '@/services/rest-api/app-api/products/product-service'
 
 const { Title, Text } = Typography
+const { RangePicker } = DatePicker
+
+const AUDIT_ACTION_OPTIONS = [
+  { label: 'Tất cả thao tác', value: undefined },
+  { label: 'Tạo sản phẩm', value: 'PRODUCT_CREATE' },
+  { label: 'Cập nhật sản phẩm', value: 'PRODUCT_UPDATE' },
+  { label: 'Cập nhật một phần', value: 'PRODUCT_PATCH' },
+  { label: 'Xóa sản phẩm', value: 'PRODUCT_DELETE' },
+  { label: 'Xuất bản', value: 'PRODUCT_PUBLISH' },
+  { label: 'Ngừng bán', value: 'PRODUCT_UNPUBLISH' },
+  { label: 'Trả về nháp', value: 'PRODUCT_REVERT_TO_DRAFT' },
+  { label: 'Tạo biến thể', value: 'VARIANT_CREATE' },
+  { label: 'Cập nhật biến thể', value: 'VARIANT_UPDATE' },
+  { label: 'Xóa biến thể', value: 'VARIANT_DELETE' },
+]
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '—'
@@ -43,6 +60,9 @@ interface ProductDetailPageProps {
 const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
   const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
+  const [auditAction, setAuditAction] = useState<string | undefined>(undefined)
+  const [auditDateRange, setAuditDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+  const [auditPage, setAuditPage] = useState(1)
 
   const { data: product, isLoading, mutate } = useAxiosSWR<ProductPojo>(
     [SWR_KEYS.PRODUCT_DETAIL, productId],
@@ -58,9 +78,38 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
     { revalidateOnMount: true },
   )
 
+  const auditFrom = useMemo(
+    () => (auditDateRange ? auditDateRange[0].startOf('day').toISOString() : undefined),
+    [auditDateRange]
+  )
+  const auditTo = useMemo(
+    () => (auditDateRange ? auditDateRange[1].endOf('day').toISOString() : undefined),
+    [auditDateRange]
+  )
+
+  const { data: auditData, isLoading: auditLoading } = useAxiosSWR<PageResponse<ProductAuditLogPojo[]>>(
+    product?.id
+      ? [SWR_KEYS.PRODUCT_AUDIT_LIST, product.id, auditAction ?? 'ALL', auditFrom ?? '', auditTo ?? '', auditPage]
+      : null,
+    product?.id
+      ? async () =>
+          searchProductAuditLogs({
+            productId: product.id,
+            action: auditAction,
+            from: auditFrom,
+            to: auditTo,
+            pageIndex: auditPage - 1,
+            pageSize: 10,
+          })
+      : null,
+    { revalidateOnMount: true },
+  )
+
 
   // Safe way to get items from variantsData (handling both 'items' and 'data' structures)
   const variants = variantsData?.items ?? variantsData?.data ?? []
+  const auditItems = auditData?.items ?? []
+  const auditTotal = auditData?.totalCount ?? 0
 
   if (isLoading) {
     return (
@@ -170,6 +219,48 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
     },
   ]
 
+  const auditColumns: ColumnsType<ProductAuditLogPojo> = [
+    {
+      title: 'Thời gian',
+      dataIndex: 'occurredAt',
+      key: 'occurredAt',
+      width: 170,
+      render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm:ss'),
+    },
+    {
+      title: 'Người thao tác',
+      dataIndex: 'actorUsername',
+      key: 'actorUsername',
+      width: 140,
+      render: (value?: string) => value || 'system',
+    },
+    {
+      title: 'Hành động',
+      dataIndex: 'action',
+      key: 'action',
+      width: 170,
+      render: (value: string) => <Tag color="purple">{value}</Tag>,
+    },
+    {
+      title: 'Đối tượng',
+      key: 'entity',
+      width: 180,
+      render: (_: unknown, record: ProductAuditLogPojo) => (
+        <Space size={4}>
+          <Tag color={record.entityType === 'PRODUCT' ? 'blue' : 'green'}>{record.entityType}</Tag>
+          <Text type="secondary">{record.entityCode || `#${record.entityId}`}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Tóm tắt',
+      dataIndex: 'summary',
+      key: 'summary',
+      ellipsis: true,
+      render: (value?: string) => value || '—',
+    },
+  ]
+
   return (
     <>
       {contextHolder}
@@ -270,6 +361,49 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
                 scroll={{ x: 800 }}
               />
             )}
+          </Card>
+
+          <Card
+            title="Lịch sử thay đổi"
+            style={{ marginBottom: 16 }}
+            extra={
+              <Space>
+                <Select
+                  allowClear
+                  placeholder="Lọc thao tác"
+                  style={{ minWidth: 200 }}
+                  value={auditAction}
+                  options={AUDIT_ACTION_OPTIONS}
+                  onChange={(value) => {
+                    setAuditAction(value)
+                    setAuditPage(1)
+                  }}
+                />
+                <RangePicker
+                  value={auditDateRange as any}
+                  onChange={(range) => {
+                    setAuditDateRange(range as [dayjs.Dayjs, dayjs.Dayjs] | null)
+                    setAuditPage(1)
+                  }}
+                  format="DD/MM/YYYY"
+                />
+              </Space>
+            }
+          >
+            <Table
+              rowKey="id"
+              columns={auditColumns}
+              dataSource={auditItems}
+              loading={auditLoading}
+              size="small"
+              pagination={{
+                current: auditPage,
+                pageSize: 10,
+                total: auditTotal,
+                showSizeChanger: false,
+                onChange: (page) => setAuditPage(page),
+              }}
+            />
           </Card>
 
           {/* Images */}

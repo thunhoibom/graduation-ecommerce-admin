@@ -1,7 +1,7 @@
 'use client'
 
-import React, { Suspense, useState, useCallback } from 'react'
-import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col, Upload, Image as AntdImage } from 'antd'
+import React, { Suspense, useState, useCallback, useMemo } from 'react'
+import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col, Upload, Image as AntdImage, Select, Alert } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
@@ -21,6 +21,7 @@ import {
   type ImagePojo,
   type VariantSearchParams,
 } from '@/services/rest-api/app-api/products/product-service'
+import { getParamsByCategory, type ParamPojo } from '@/services/rest-api/app-api/settings/settings-service'
 import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 
 import AppTable from '@/shared/components/antd/AppTable'
@@ -28,6 +29,19 @@ import BulkOperationsModal from '../../_components/bulk/BulkOperationsModal'
 import { useTableFetchingParamsForVariants, DEFAULT_VARIANT_PARAMS, type DefaultVariantParams } from '../../_hooks/use-fetch-variants'
 
 const { Title, Text } = Typography
+const { Option } = Select
+
+const DEFAULT_SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
+const DEFAULT_COLOR_OPTIONS = ['Đen', 'Trắng', 'Xanh', 'Đỏ', 'Vàng', 'Be', 'Nâu', 'Xám', 'Hồng', 'Tím']
+
+type MatrixPreviewRow = {
+  key: string
+  sku: string
+  size: string
+  color: string
+  canCreate: boolean
+  reason?: string
+}
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '0 ₫'
@@ -36,6 +50,63 @@ const formatVND = (value: number | undefined) => {
     currency: 'VND',
     maximumFractionDigits: 0,
   }).format(value)
+}
+
+const normalizeSkuPart = (value: string) =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Z0-9-]/g, '')
+
+const buildAutoVariantSku = (
+  productBarcode: string,
+  size: string,
+  color: string | undefined,
+  existingSkus: string[]
+) => {
+  const base = `${normalizeSkuPart(productBarcode)}-${normalizeSkuPart(size)}-${normalizeSkuPart(color || 'NA')}`
+  const existing = new Set(existingSkus.map((sku) => sku.toUpperCase()))
+  if (!existing.has(base)) {
+    return base
+  }
+
+  let counter = 2
+  while (existing.has(`${base}-${counter}`)) {
+    counter += 1
+  }
+  return `${base}-${counter}`
+}
+
+const toCombinationKey = (size: string | undefined, color: string | undefined) =>
+  `${(size ?? '').trim().toUpperCase()}::${(color ?? '').trim().toUpperCase()}`
+
+const parseOptionList = (rawValue: string | undefined): string[] => {
+  if (!rawValue) {
+    return []
+  }
+  const trimmed = rawValue.trim()
+  if (!trimmed) {
+    return []
+  }
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item).trim())
+          .filter((item) => item.length > 0)
+      }
+    } catch {
+      // Fallback to plain delimiter parsing.
+    }
+  }
+
+  return trimmed
+    .split(/[,\n;|]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
 }
 
 const VariantManagementView: React.FC = () => {
@@ -51,6 +122,29 @@ const VariantManagementView: React.FC = () => {
   )
 
   const barcode = product?.barcode
+
+  const { data: optionSetParams } = useAxiosSWR<{ data: ParamPojo[] }>(
+    [SWR_KEYS.PARAMS_BY_CATEGORY, 'variant-option-sets'],
+    async () => {
+      const res = await getParamsByCategory('variant_option_set')
+      return { data: res.data ?? [] }
+    },
+    { revalidateOnMount: true },
+  )
+
+  const sizeOptions = useMemo(() => {
+    const params = optionSetParams?.data ?? []
+    const sizeParam = params.find((item) => item.name?.toLowerCase() === 'size')
+    const parsed = parseOptionList(sizeParam?.value)
+    return parsed.length > 0 ? parsed : DEFAULT_SIZE_OPTIONS
+  }, [optionSetParams?.data])
+
+  const colorOptions = useMemo(() => {
+    const params = optionSetParams?.data ?? []
+    const colorParam = params.find((item) => item.name?.toLowerCase() === 'color')
+    const parsed = parseOptionList(colorParam?.value)
+    return parsed.length > 0 ? parsed : DEFAULT_COLOR_OPTIONS
+  }, [optionSetParams?.data])
 
   const { queryParams, setTableFetchingParams } = useTableFetchingParamsForVariants<DefaultVariantParams>({
     ...DEFAULT_VARIANT_PARAMS,
@@ -89,6 +183,13 @@ const VariantManagementView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [form] = Form.useForm()
+  const [matrixModalOpen, setMatrixModalOpen] = useState(false)
+  const [matrixSubmitting, setMatrixSubmitting] = useState(false)
+  const [matrixForm] = Form.useForm()
+  const watchedSize = Form.useWatch('size', form) as string | undefined
+  const watchedColor = Form.useWatch('color', form) as string | undefined
+  const matrixSizes = Form.useWatch('sizes', matrixForm) as string[] | undefined
+  const matrixColors = Form.useWatch('colors', matrixForm) as string[] | undefined
 
   // Bulk modal + row selection
   const [bulkModalOpen, setBulkModalOpen] = useState(false)
@@ -292,6 +393,152 @@ const VariantManagementView: React.FC = () => {
     setModalOpen(true)
   }
 
+  const buildSku = (prefix: string, size: string, color: string, index: number) => {
+    const colorCode = color
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Z0-9-]/g, '')
+    const sizeCode = size
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Z0-9-]/g, '')
+    return `${prefix}-${sizeCode}-${colorCode || index + 1}`
+  }
+
+  const matrixPreviewRows = useMemo<MatrixPreviewRow[]>(() => {
+    const sizes = matrixSizes ?? []
+    const colors = matrixColors ?? []
+    const skuPrefix = String(product?.barcode || '').trim()
+    if (!skuPrefix || sizes.length === 0 || colors.length === 0) {
+      return []
+    }
+
+    const existingSkus = new Set((variantData?.data ?? []).map((item) => item.sku?.toUpperCase()))
+    const existingComboKeys = new Set(
+      (variantData?.data ?? []).map((item) => toCombinationKey(item.size, item.color))
+    )
+    const rows = sizes.flatMap((size) =>
+      colors.map((color, index) => ({
+        key: `${size}-${color}-${index}`,
+        sku: buildSku(skuPrefix, size, color, index),
+        size,
+        color,
+      }))
+    )
+
+    const countBySku = new Map<string, number>()
+    rows.forEach((row) => {
+      const normalized = row.sku.toUpperCase()
+      countBySku.set(normalized, (countBySku.get(normalized) ?? 0) + 1)
+    })
+
+    return rows.map((row) => {
+      const normalized = row.sku.toUpperCase()
+      const duplicateInBatch = (countBySku.get(normalized) ?? 0) > 1
+      const duplicateExisting = existingSkus.has(normalized)
+      const duplicateComboExisting = existingComboKeys.has(toCombinationKey(row.size, row.color))
+
+      if (duplicateExisting) {
+        return { ...row, canCreate: false, reason: 'SKU đã tồn tại' }
+      }
+      if (duplicateComboExisting) {
+        return { ...row, canCreate: false, reason: 'Trùng tổ hợp size/màu' }
+      }
+      if (duplicateInBatch) {
+        return { ...row, canCreate: false, reason: 'Trùng trong ma trận' }
+      }
+      return { ...row, canCreate: true }
+    })
+  }, [matrixSizes, matrixColors, product?.barcode, variantData?.data])
+
+  const handleCreateByMatrix = async () => {
+    if (!product?.barcode) {
+      messageApi.error('Không tìm thấy mã sản phẩm để tạo biến thể.')
+      return
+    }
+    try {
+      const values = await matrixForm.validateFields()
+      const sizes = (values.sizes as string[]) ?? []
+      const colors = (values.colors as string[]) ?? []
+      const skuPrefix = String(product.barcode).trim()
+
+      const combinations: Array<{ size: string; color: string }> = []
+      sizes.forEach((size) => {
+        colors.forEach((color) => {
+          combinations.push({ size, color })
+        })
+      })
+
+      if (combinations.length === 0) {
+        messageApi.warning('Vui lòng chọn ít nhất 1 size và 1 màu.')
+        return
+      }
+
+      const creatableSkus = new Set(
+        matrixPreviewRows.filter((row) => row.canCreate).map((row) => row.sku.toUpperCase())
+      )
+      const payloads = combinations
+        .map((combo, index) => {
+          const sku = buildSku(skuPrefix, combo.size, combo.color, index)
+          if (!creatableSkus.has(sku.toUpperCase())) {
+            return null
+          }
+          return {
+            productBarcode: product.barcode,
+            sku,
+            size: combo.size,
+            color: combo.color,
+            priceModifier: Number(values.priceModifier ?? 0),
+            currentStock: Number(values.currentStock ?? 0),
+            criticalStock: Number(values.criticalStock ?? 0),
+            active: true,
+          } as ProductVariantPojo
+        })
+        .filter(Boolean) as ProductVariantPojo[]
+
+      if (payloads.length === 0) {
+        messageApi.warning('Các SKU sinh ra đã tồn tại, không có biến thể mới để tạo.')
+        return
+      }
+
+      setMatrixSubmitting(true)
+      const results = await Promise.allSettled(payloads.map((payload) => createVariant(payload)))
+      const successCount = results.filter((result) => result.status === 'fulfilled').length
+      const failCount = results.length - successCount
+
+      if (successCount > 0) {
+        messageApi.success(`Đã tạo ${successCount} biến thể từ ma trận.`)
+      }
+      if (failCount > 0) {
+        messageApi.warning(`${failCount} biến thể tạo thất bại, vui lòng kiểm tra dữ liệu SKU/thuộc tính.`)
+      }
+
+      if (successCount > 0) {
+        setMatrixModalOpen(false)
+        matrixForm.resetFields()
+        mutate()
+      }
+    } catch {
+      // Validation errors are handled by Form.
+    } finally {
+      setMatrixSubmitting(false)
+    }
+  }
+
+  const matrixPreviewColumns: ColumnsType<MatrixPreviewRow> = [
+    { title: 'SKU sẽ tạo', dataIndex: 'sku', key: 'sku', width: 220, render: (sku: string) => <Text code>{sku}</Text> },
+    { title: 'Size', dataIndex: 'size', key: 'size', width: 90 },
+    { title: 'Màu', dataIndex: 'color', key: 'color', width: 120 },
+    {
+      title: 'Trạng thái',
+      key: 'status',
+      render: (_: unknown, row: MatrixPreviewRow) =>
+        row.canCreate ? <Tag color="green">Tạo mới</Tag> : <Tag color="red">{row.reason}</Tag>,
+    },
+  ]
+
   const handleBulkComplete = useCallback(() => {
     setSelectedVariantIds([])
     mutate()
@@ -321,6 +568,26 @@ const VariantManagementView: React.FC = () => {
 
     setSubmitting(true)
     try {
+      const incomingComboKey = toCombinationKey(values.size as string, values.color as string | undefined)
+      const duplicatedCombination = (variantData?.data ?? []).some((item) =>
+        item.id !== editingVariant?.id && toCombinationKey(item.size, item.color) === incomingComboKey
+      )
+      if (duplicatedCombination) {
+        messageApi.error('Tổ hợp size/màu đã tồn tại cho sản phẩm này.')
+        return
+      }
+
+      const existingSkus = (variantData?.data ?? [])
+        .filter((item) => item.sku && item.id !== editingVariant?.id)
+        .map((item) => String(item.sku))
+
+      const generatedSku = buildAutoVariantSku(
+        product.barcode,
+        String(values.size ?? ''),
+        (values.color as string | undefined) ?? undefined,
+        existingSkus
+      )
+
       // Extract images from fileList
       const imagePojos = fileList
         .filter(file => file.status === 'done')
@@ -328,7 +595,7 @@ const VariantManagementView: React.FC = () => {
 
       const payload: ProductVariantPojo = {
         productBarcode: product.barcode,
-        sku: values.sku as string,
+        sku: editingVariant?.sku ?? generatedSku,
         size: values.size as string,
         color: values.color as string | undefined,
         priceModifier: values.priceModifier as number | undefined,
@@ -392,6 +659,20 @@ const VariantManagementView: React.FC = () => {
               </Button>
             )}
             <Button
+              onClick={() => {
+                matrixForm.setFieldsValue({
+                  sizes: sizeOptions.slice(0, 2),
+                  colors: colorOptions.slice(0, 2),
+                  priceModifier: 0,
+                  currentStock: 0,
+                  criticalStock: 0,
+                })
+                setMatrixModalOpen(true)
+              }}
+            >
+              Tạo theo ma trận
+            </Button>
+            <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleAddNew}
@@ -428,6 +709,7 @@ const VariantManagementView: React.FC = () => {
         open={bulkModalOpen}
         onClose={() => setBulkModalOpen(false)}
         selectedIds={[]}
+        selectedProducts={[]}
         allProductIds={[]}
         selectedVariantIds={selectedVariantIds as number[]}
         productBarcode={barcode}
@@ -443,6 +725,7 @@ const VariantManagementView: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         confirmLoading={submitting}
         okText={editingVariant ? 'Lưu thay đổi' : 'Tạo mới'}
+        width={760}
         destroyOnHidden
       >
         <Form
@@ -471,23 +754,38 @@ const VariantManagementView: React.FC = () => {
           </Form.Item>
 
           <Row gutter={[16, 0]}>
-
             <Col span={12}>
-              <Form.Item
-                name="sku"
-                label="SKU"
-                rules={[{ required: true, message: 'Vui lòng nhập SKU' }]}
-              >
-                <Input placeholder="VD: SP001-S-MAU1" />
+              <Form.Item label="SKU">
+                {editingVariant ? (
+                  <Input value={editingVariant.sku} disabled />
+                ) : (
+                  <Input
+                    value={
+                      product?.barcode && watchedSize
+                        ? buildAutoVariantSku(
+                            product.barcode,
+                            watchedSize,
+                            watchedColor,
+                            (variantData?.data ?? []).map((item) => String(item.sku ?? ''))
+                          )
+                        : 'SKU sẽ tự sinh sau khi chọn size/màu'
+                    }
+                    disabled
+                  />
+                )}
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="size"
                 label="Size"
-                rules={[{ required: true, message: 'Vui lòng nhập size' }]}
+                rules={[{ required: true, message: 'Vui lòng chọn size' }]}
               >
-                <Input placeholder="VD: S, M, L, XL" />
+                <Select placeholder="Chọn size">
+                  {sizeOptions.map((size) => (
+                    <Option key={size} value={size}>{size}</Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
           </Row>
@@ -495,7 +793,16 @@ const VariantManagementView: React.FC = () => {
           <Row gutter={[16, 0]}>
             <Col span={12}>
               <Form.Item name="color" label="Color">
-                <Input placeholder="VD: Đen, Trắng, Xanh" />
+                <Select
+                  placeholder="Chọn màu"
+                  showSearch
+                  allowClear
+                  optionFilterProp="children"
+                >
+                  {colorOptions.map((color) => (
+                    <Option key={color} value={color}>{color}</Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -532,6 +839,95 @@ const VariantManagementView: React.FC = () => {
               {form.getFieldValue('active') ? 'Hoạt động' : 'Khóa'}
             </Button>
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Tạo biến thể theo ma trận thuộc tính"
+        open={matrixModalOpen}
+        onCancel={() => setMatrixModalOpen(false)}
+        onOk={handleCreateByMatrix}
+        confirmLoading={matrixSubmitting}
+        okText="Tạo biến thể"
+        cancelText="Hủy"
+        width={900}
+        destroyOnHidden
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Chọn nhiều size và màu để hệ thống tự tạo tổ hợp biến thể."
+          description={`SKU được tự sinh theo mẫu: ${barcode ?? 'PRODUCT'}-SIZE-COLOR`}
+        />
+        <Form
+          form={matrixForm}
+          layout="vertical"
+          initialValues={{
+            sizes: sizeOptions.slice(0, 2),
+            colors: colorOptions.slice(0, 2),
+            priceModifier: 0,
+            currentStock: 0,
+            criticalStock: 0,
+          }}
+        >
+          <Form.Item
+            name="sizes"
+            label="Size (multi-select)"
+            rules={[{ required: true, message: 'Vui lòng chọn ít nhất 1 size' }]}
+          >
+            <Select mode="multiple" placeholder="Chọn size">
+              {sizeOptions.map((size) => (
+                <Option key={size} value={size}>{size}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="colors"
+            label="Màu (multi-select)"
+            rules={[{ required: true, message: 'Vui lòng chọn ít nhất 1 màu' }]}
+          >
+            <Select mode="tags" placeholder="Chọn màu hoặc nhập mới" tokenSeparators={[',']}>
+              {colorOptions.map((color) => (
+                <Option key={color} value={color}>{color}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Row gutter={[12, 0]}>
+            <Col span={8}>
+              <Form.Item name="priceModifier" label="Modifier giá">
+                <InputNumber style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="currentStock" label="Tồn kho">
+                <InputNumber min={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="criticalStock" label="Ngưỡng">
+                <InputNumber min={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Alert
+            type={matrixPreviewRows.some((row) => !row.canCreate) ? 'warning' : 'success'}
+            showIcon
+            style={{ marginTop: 8, marginBottom: 12 }}
+            message={`Preview: ${matrixPreviewRows.length} tổ hợp, ${matrixPreviewRows.filter((row) => row.canCreate).length} có thể tạo.`}
+          />
+
+          <Table
+            rowKey="key"
+            size="small"
+            columns={matrixPreviewColumns}
+            dataSource={matrixPreviewRows}
+            pagination={{ pageSize: 6 }}
+            scroll={{ y: 240 }}
+          />
         </Form>
       </Modal>
     </>
