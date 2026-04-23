@@ -4,7 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Tag, Button, Space,
-  Divider, Spin, Breadcrumb, Row, Col, Statistic, message,
+  Divider, Spin, Breadcrumb, Row, Col, message, Timeline,
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, CheckCircleOutlined,
@@ -24,13 +24,17 @@ import {
   markOrderDeliveryFailed,
   markOrderDeliveryCancelled,
   markOrderReturned,
+  getOrderShipmentTracking,
+  type ShipmentTrackingItem,
   type OrderPojo,
   type OrderDetailPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
 import {
-  ACTIONS_BY_STATUS,
-  ORDER_STATUS_CONFIG,
-  normalizeOrderStatus,
+  FULFILLMENT_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  getAvailableOrderActions,
+  normalizeFulfillmentStatus,
+  normalizePaymentStatus,
   type OrderStatusAction,
 } from '@/constants/order-status'
 
@@ -86,6 +90,11 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     async () => getOrderById(orderId),
     { revalidateOnMount: true },
   )
+  const { data: trackingHistory } = useAxiosSWR<ShipmentTrackingItem[]>(
+    [SWR_KEYS.ORDER_DETAIL, 'tracking', orderId],
+    async () => getOrderShipmentTracking(orderId),
+    { revalidateOnMount: true },
+  )
 
   const handleAction = async (
     action: OrderStatusAction,
@@ -124,8 +133,11 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     )
   }
 
-  const s = normalizeOrderStatus(order.status)
-  const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
+  const fulfillmentStatus = order.fulfillmentStatus ?? order.status
+  const paymentStatus = order.paymentStatus
+  const s = normalizeFulfillmentStatus(fulfillmentStatus)
+  const cfg = FULFILLMENT_STATUS_CONFIG[s] ?? { color: 'default', label: fulfillmentStatus ?? s }
+  const latestTracking = trackingHistory?.[0]
 
   const itemColumns: ColumnsType<OrderDetailPojo> = [
     {
@@ -193,7 +205,7 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
 
   // ── Action buttons by status ──────────────────────────────────
   const actionButtons = () => {
-    const availableActions = ACTIONS_BY_STATUS[s] ?? []
+    const availableActions = getAvailableOrderActions(fulfillmentStatus, paymentStatus)
     if (availableActions.includes('confirm')) {
       return (
         <Space>
@@ -379,7 +391,53 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
                   <Text type="secondary">—</Text>
                 )}
               </Descriptions.Item>
+              <Descriptions.Item label="ĐVVC">
+                {latestTracking?.shipperCode ?? <Text type="secondary">—</Text>}
+              </Descriptions.Item>
+              <Descriptions.Item label="Trạng thái GHN mới nhất">
+                {latestTracking?.status ? (
+                  <Tag color="processing">{latestTracking.status}</Tag>
+                ) : (
+                  <Text type="secondary">—</Text>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="Cập nhật vận chuyển">
+                {latestTracking?.eventTime ? formatDate(latestTracking.eventTime) : '—'}
+              </Descriptions.Item>
             </Descriptions>
+          </Card>
+
+          {/* Shipment tracking timeline */}
+          <Card title="Lịch sử vận chuyển" style={{ marginBottom: 16 }}>
+            {trackingHistory && trackingHistory.length > 0 ? (
+              <Timeline
+                items={trackingHistory.map((item) => ({
+                  color: item.status?.toUpperCase() === 'DELIVERED' ? 'green' : 'blue',
+                  children: (
+                    <Space direction="vertical" size={2}>
+                      <Space size={8} wrap>
+                        <Tag color="processing">{item.status}</Tag>
+                        {item.eventTime && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {formatDate(item.eventTime)}
+                          </Text>
+                        )}
+                      </Space>
+                      {item.location && (
+                        <Text style={{ fontSize: 13 }}>{item.location}</Text>
+                      )}
+                      {item.description && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {item.description}
+                        </Text>
+                      )}
+                    </Space>
+                  ),
+                }))}
+              />
+            ) : (
+              <Text type="secondary">Chưa có lịch sử vận chuyển.</Text>
+            )}
           </Card>
 
           {/* Notes */}
@@ -440,9 +498,11 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
               </Descriptions.Item>
               <Descriptions.Item label="Số sản phẩm">{order.totalItems ?? order.details?.length ?? 0}</Descriptions.Item>
               <Descriptions.Item label="Thanh toán">
-                <Tag color={order.paymentStatus === 'PAID' ? 'green' : 'orange'}>
-                  {order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                </Tag>
+                {(() => {
+                  const p = normalizePaymentStatus(order.paymentStatus)
+                  const pCfg = PAYMENT_STATUS_CONFIG[p] ?? { color: 'default', label: p }
+                  return <Tag color={pCfg.color}>{pCfg.label}</Tag>
+                })()}
                 <br />
                 <Text type="secondary" style={{ fontSize: 12 }}>{order.paymentType ?? order.paymentMethod ?? '—'}</Text>
               </Descriptions.Item>

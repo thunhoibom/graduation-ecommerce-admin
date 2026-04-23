@@ -15,6 +15,11 @@ export type ShippingMethodPojo = {
   estimatedDaysMin: number
   estimatedDaysMax: number
   active: boolean
+  pricePerKm?: number
+  carrierCode?: 'LOCAL' | 'GHN' | string
+  rateMode?: 'STATIC' | 'DISTANCE' | 'LIVE_API' | string
+  carrierServiceCode?: string
+  carrierShopId?: number
 }
 
 export type ShippingSearchParams = {

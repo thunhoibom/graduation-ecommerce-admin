@@ -7,13 +7,9 @@ export type OrderStatusAction =
   | 'deliveryCancelled'
   | 'markReturned'
 
-export const ORDER_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING: { color: 'gold', label: 'Chờ thanh toán' },
-  PAYMENT_STARTED: { color: 'gold', label: 'Đang thanh toán' },
-  PAYMENT_FAILED: { color: 'volcano', label: 'Thanh toán thất bại' },
-  PAYMENT_CANCELLED: { color: 'red', label: 'Hủy thanh toán' },
-  PAID_UNCONFIRMED: { color: 'cyan', label: 'Đã thanh toán, chờ duyệt' },
-  PAID_CONFIRMED: { color: 'blue', label: 'Đã duyệt đơn' },
+export const FULFILLMENT_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  PENDING: { color: 'gold', label: 'Chờ xử lý' },
+  CONFIRMED: { color: 'blue', label: 'Đã xác nhận' },
   DELIVERY_ON_ROUTE: { color: 'geekblue', label: 'Đang giao hàng' },
   DELIVERY_COMPLETE: { color: 'green', label: 'Giao thành công' },
   DELIVERY_FAILED: { color: 'volcano', label: 'Giao thất bại' },
@@ -22,32 +18,76 @@ export const ORDER_STATUS_CONFIG: Record<string, { color: string; label: string 
   RETURNED: { color: 'purple', label: 'Đã hoàn hàng' },
 }
 
-export const ORDER_STATUS_OPTIONS = Object.entries(ORDER_STATUS_CONFIG).map(([value, config]) => ({
+export const PAYMENT_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  UNPAID: { color: 'orange', label: 'Chưa thanh toán' },
+  PAYMENT_STARTED: { color: 'gold', label: 'Đang thanh toán' },
+  PAID: { color: 'green', label: 'Đã thanh toán' },
+  PAYMENT_FAILED: { color: 'volcano', label: 'Thanh toán thất bại' },
+  PAYMENT_CANCELLED: { color: 'red', label: 'Hủy thanh toán' },
+  REFUND_PENDING: { color: 'processing', label: 'Đang hoàn tiền' },
+  REFUNDED: { color: 'magenta', label: 'Đã hoàn tiền' },
+  PARTIALLY_REFUNDED: { color: 'purple', label: 'Hoàn tiền một phần' },
+}
+
+export const FULFILLMENT_STATUS_OPTIONS = Object.entries(FULFILLMENT_STATUS_CONFIG).map(([value, config]) => ({
   value,
   label: config.label,
 }))
 
-export const ORDER_STATUS_PIPELINE = [
+export const PAYMENT_STATUS_OPTIONS = Object.entries(PAYMENT_STATUS_CONFIG).map(([value, config]) => ({
+  value,
+  label: config.label,
+}))
+
+export const FULFILLMENT_STATUS_PIPELINE = [
   'PENDING',
-  'PAYMENT_STARTED',
-  'PAID_UNCONFIRMED',
-  'PAID_CONFIRMED',
+  'CONFIRMED',
   'DELIVERY_ON_ROUTE',
   'DELIVERY_COMPLETE',
 ]
 
-export const TERMINAL_ORDER_STATUSES = ['PAYMENT_FAILED', 'PAYMENT_CANCELLED', 'REJECTED', 'RETURNED']
+export const TERMINAL_FULFILLMENT_STATUSES = ['DELIVERY_FAILED', 'DELIVERY_CANCELLED', 'REJECTED', 'RETURNED']
 
-export const ACTIONS_BY_STATUS: Record<string, OrderStatusAction[]> = {
-  PAID_UNCONFIRMED: ['confirm', 'reject'],
-  PAID_CONFIRMED: ['handover'],
+export const ACTIONS_BY_FULFILLMENT_STATUS: Record<string, OrderStatusAction[]> = {
+  PENDING: ['confirm', 'reject'],
+  CONFIRMED: ['handover'],
   DELIVERY_ON_ROUTE: ['complete', 'deliveryFailed', 'deliveryCancelled'],
   DELIVERY_COMPLETE: ['markReturned'],
   DELIVERY_FAILED: ['markReturned'],
   DELIVERY_CANCELLED: ['markReturned'],
 }
 
-export const normalizeOrderStatus = (status?: string): string => {
+const LEGACY_FULFILLMENT_ALIAS: Record<string, string> = {
+  PAID_UNCONFIRMED: 'PENDING',
+  PAID_CONFIRMED: 'CONFIRMED',
+}
+
+const LEGACY_PAYMENT_ALIAS: Record<string, string> = {
+  PENDING: 'UNPAID',
+  PAID_UNCONFIRMED: 'PAID',
+  PAID_CONFIRMED: 'PAID',
+}
+
+export const normalizeFulfillmentStatus = (status?: string): string => {
   if (!status) return 'PENDING'
-  return status.toUpperCase().replace(/[\s,]+/g, '_')
+  const normalized = status.toUpperCase().replace(/[\s,]+/g, '_')
+  return LEGACY_FULFILLMENT_ALIAS[normalized] ?? normalized
+}
+
+export const normalizePaymentStatus = (status?: string): string => {
+  if (!status) return 'UNPAID'
+  const normalized = status.toUpperCase().replace(/[\s,]+/g, '_')
+  return LEGACY_PAYMENT_ALIAS[normalized] ?? normalized
+}
+
+export const getAvailableOrderActions = (
+  fulfillmentStatus?: string,
+  paymentStatus?: string,
+): OrderStatusAction[] => {
+  const f = normalizeFulfillmentStatus(fulfillmentStatus)
+  const p = normalizePaymentStatus(paymentStatus)
+  if (f === 'PENDING' && p !== 'PAID') {
+    return []
+  }
+  return ACTIONS_BY_FULFILLMENT_STATUS[f] ?? []
 }

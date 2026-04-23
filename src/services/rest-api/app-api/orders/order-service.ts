@@ -98,6 +98,7 @@ export type OrderPojo = {
 
   // Status & payment
   status?: string
+  fulfillmentStatus?: string
   paymentStatus?: string
   paymentType?: string
   paymentMethod?: string
@@ -137,6 +138,7 @@ export type OrderPojo = {
 
 export type OrderSearchParams = {
   status?: string
+  fulfillmentStatus?: string
   paymentStatus?: string
   customerName?: string
   trackingNumber?: string
@@ -146,6 +148,18 @@ export type OrderSearchParams = {
   size?: number
   sortField?: string
   sortDirection?: 'ASC' | 'DESC'
+}
+
+export type ShipmentTrackingItem = {
+  id?: string
+  orderId: number
+  trackingNumber: string
+  shipperCode?: string
+  status: string
+  location?: string
+  description?: string
+  eventTime?: string
+  receivedAt?: string
 }
 
 export type PageResponse<T> = {
@@ -209,4 +223,16 @@ export const markOrderReturned = (id: number, reason?: string) => {
 
 export const cancelOrder = (id: number, reason?: string) => {
   return orderService.post<OrderPojo>('/cancellation', { id, notes: reason })
+}
+
+export const getOrderShipmentTracking = async (orderId: number) => {
+  try {
+    return await appApiIns.get<ShipmentTrackingItem[]>(`/api/public/tracking/order/${orderId}`)
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status
+    if (status === 404) {
+      return []
+    }
+    throw error
+  }
 }

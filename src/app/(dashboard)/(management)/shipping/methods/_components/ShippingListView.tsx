@@ -85,6 +85,11 @@ const ShippingListView: React.FC = () => {
       estimatedDaysMin: record.estimatedDaysMin,
       estimatedDaysMax: record.estimatedDaysMax,
       active: record.active,
+      pricePerKm: record.pricePerKm,
+      carrierCode: record.carrierCode ?? 'LOCAL',
+      rateMode: record.rateMode ?? 'DISTANCE',
+      carrierServiceCode: record.carrierServiceCode,
+      carrierShopId: record.carrierShopId,
     })
     setFormOpen(true)
   }
@@ -111,6 +116,11 @@ const ShippingListView: React.FC = () => {
         estimatedDaysMin: Number(values.estimatedDaysMin),
         estimatedDaysMax: Number(values.estimatedDaysMax),
         active: values.active as boolean ?? true,
+        pricePerKm: values.pricePerKm ? Number(values.pricePerKm) : undefined,
+        carrierCode: (values.carrierCode as string) || 'LOCAL',
+        rateMode: (values.rateMode as string) || 'DISTANCE',
+        carrierServiceCode: values.carrierServiceCode as string | undefined,
+        carrierShopId: values.carrierShopId ? Number(values.carrierShopId) : undefined,
       }
 
       if (editingMethod) {
@@ -187,6 +197,13 @@ const ShippingListView: React.FC = () => {
           }}
         />
       ),
+    },
+    {
+      title: 'Carrier',
+      dataIndex: 'carrierCode',
+      key: 'carrierCode',
+      width: 100,
+      render: (v?: string) => <Tag color={v === 'GHN' ? 'blue' : 'default'}>{v ?? 'LOCAL'}</Tag>,
     },
     {
       title: 'Thao tác',
@@ -275,7 +292,7 @@ const ShippingListView: React.FC = () => {
           form={form}
           layout="vertical"
           onFinish={handleFormSubmit}
-          initialValues={{ active: true, estimatedDaysMin: 1, estimatedDaysMax: 5 }}
+          initialValues={{ active: true, estimatedDaysMin: 1, estimatedDaysMax: 5, carrierCode: 'LOCAL', rateMode: 'DISTANCE' }}
           style={{ marginTop: 16 }}
         >
           <Form.Item
@@ -297,8 +314,57 @@ const ShippingListView: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
+              <Form.Item
+                name="pricePerKm"
+                label="Phí/km (nếu có)"
+              >
+                <Input type="number" min={0} placeholder="VD: 3000" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[12, 0]}>
+            <Col span={12}>
+              <Form.Item
+                name="carrierCode"
+                label="Carrier code"
+              >
+                <Input placeholder="LOCAL hoặc GHN" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="rateMode"
+                label="Rate mode"
+              >
+                <Input placeholder="STATIC / DISTANCE / LIVE_API" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[12, 0]}>
+            <Col span={12}>
+              <Form.Item
+                name="carrierServiceCode"
+                label="GHN service ID"
+              >
+                <Input placeholder="VD: 53320" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
               <Form.Item name="freeShippingThreshold" label="Miễn phí từ (VND)">
                 <Input type="number" min={0} placeholder="VD: 500000" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[12, 0]}>
+            <Col span={12}>
+              <Form.Item
+                name="carrierShopId"
+                label="GHN shop ID"
+              >
+                <Input type="number" min={0} placeholder="VD: 123456" />
               </Form.Item>
             </Col>
           </Row>

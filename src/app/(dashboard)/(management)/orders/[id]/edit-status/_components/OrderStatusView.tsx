@@ -30,11 +30,13 @@ import {
   type OrderPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
 import {
-  ACTIONS_BY_STATUS,
-  ORDER_STATUS_CONFIG,
-  ORDER_STATUS_PIPELINE,
-  TERMINAL_ORDER_STATUSES,
-  normalizeOrderStatus,
+  FULFILLMENT_STATUS_CONFIG,
+  FULFILLMENT_STATUS_PIPELINE,
+  PAYMENT_STATUS_CONFIG,
+  TERMINAL_FULFILLMENT_STATUSES,
+  getAvailableOrderActions,
+  normalizeFulfillmentStatus,
+  normalizePaymentStatus,
   type OrderStatusAction,
 } from '@/constants/order-status'
 
@@ -42,9 +44,7 @@ const { Title, Text, Paragraph } = Typography
 
 const STEP_ICON_MAP: Record<string, React.ReactNode> = {
   PENDING: <ClockCircleOutlined />,
-  PAYMENT_STARTED: <ClockCircleOutlined />,
-  PAID_UNCONFIRMED: <ExclamationCircleOutlined />,
-  PAID_CONFIRMED: <CheckCircleOutlined />,
+  CONFIRMED: <ExclamationCircleOutlined />,
   DELIVERY_ON_ROUTE: <CarOutlined />,
   DELIVERY_COMPLETE: <CheckCircleOutlined />,
 }
@@ -76,10 +76,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
     { revalidateOnMount: true },
   )
 
-  const s = normalizeOrderStatus(order?.status)
-  const currentIdx = ORDER_STATUS_PIPELINE.findIndex((statusKey) => statusKey === s)
-  const isTerminal = TERMINAL_ORDER_STATUSES.includes(s)
-  const availableActions = ACTIONS_BY_STATUS[s] ?? []
+  const fulfillmentStatus = order?.fulfillmentStatus ?? order?.status
+  const s = normalizeFulfillmentStatus(fulfillmentStatus)
+  const currentIdx = FULFILLMENT_STATUS_PIPELINE.findIndex((statusKey) => statusKey === s)
+  const isTerminal = TERMINAL_FULFILLMENT_STATUSES.includes(s)
+  const availableActions = getAvailableOrderActions(fulfillmentStatus, order?.paymentStatus)
 
   // ── Action handlers ──────────────────────────────────────────
 
@@ -156,7 +157,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
     )
   }
 
-  const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: order.status }
+  const cfg = FULFILLMENT_STATUS_CONFIG[s] ?? { color: 'default', label: fulfillmentStatus ?? s }
 
   return (
     <>
@@ -203,8 +204,8 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
               <Steps
                 current={currentIdx >= 0 ? currentIdx : 0}
                 size="small"
-                items={ORDER_STATUS_PIPELINE.map((statusKey, idx) => ({
-                  title: ORDER_STATUS_CONFIG[statusKey]?.label ?? statusKey,
+                items={FULFILLMENT_STATUS_PIPELINE.map((statusKey, idx) => ({
+                  title: FULFILLMENT_STATUS_CONFIG[statusKey]?.label ?? statusKey,
                   icon: STEP_ICON_MAP[statusKey],
                   status: idx < currentIdx
                     ? 'finish'
@@ -357,11 +358,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                 description={
                   s === 'RETURNED'
                       ? 'Đơn hàng đã được trả lại.'
-                    : s === 'PAYMENT_FAILED' || s === 'PAYMENT_CANCELLED'
+                    : order.paymentStatus === 'PAYMENT_FAILED' || order.paymentStatus === 'PAYMENT_CANCELLED'
                       ? 'Đơn hàng kết thúc ở bước thanh toán, không thể xử lý tiếp.'
                       : 'Đơn hàng kết thúc ở trạng thái từ chối.'
                 }
-                type={s === 'PAYMENT_FAILED' || s === 'PAYMENT_CANCELLED' ? 'error' : 'info'}
+                type={order.paymentStatus === 'PAYMENT_FAILED' || order.paymentStatus === 'PAYMENT_CANCELLED' ? 'error' : 'info'}
                 showIcon
               />
             </Card>
@@ -430,9 +431,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="Thanh toán">
-                <Tag color={order.paymentStatus === 'PAID' ? 'green' : 'orange'}>
-                  {order.paymentStatus === 'PAID' ? 'Đã TT' : 'Chưa TT'}
-                </Tag>
+                {(() => {
+                  const p = normalizePaymentStatus(order.paymentStatus)
+                  const pCfg = PAYMENT_STATUS_CONFIG[p] ?? { color: 'default', label: p }
+                  return <Tag color={pCfg.color}>{pCfg.label}</Tag>
+                })()}
               </Descriptions.Item>
               <Descriptions.Item label="Mã vận đơn">
                 {order.trackingNumber

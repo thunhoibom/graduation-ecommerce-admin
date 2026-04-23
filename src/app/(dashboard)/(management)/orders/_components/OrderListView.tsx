@@ -28,10 +28,13 @@ import {
   type OrderSearchParams,
 } from '@/services/rest-api/app-api/orders/order-service'
 import {
-  ACTIONS_BY_STATUS,
-  ORDER_STATUS_CONFIG,
-  ORDER_STATUS_OPTIONS,
-  normalizeOrderStatus,
+  FULFILLMENT_STATUS_CONFIG,
+  FULFILLMENT_STATUS_OPTIONS,
+  PAYMENT_STATUS_CONFIG,
+  PAYMENT_STATUS_OPTIONS,
+  getAvailableOrderActions,
+  normalizeFulfillmentStatus,
+  normalizePaymentStatus,
   type OrderStatusAction,
 } from '@/constants/order-status'
 import AppTable from '@/shared/components/antd/AppTable'
@@ -94,11 +97,13 @@ const OrderListView: React.FC = () => {
   }, [mutate])
 
   const handleDateRange = useCallback(
-    (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
+    (dates: [unknown, unknown] | null) => {
+      const dateFrom = dates?.[0] && dayjs.isDayjs(dates[0]) ? dates[0].format('YYYY-MM-DD') : undefined
+      const dateTo = dates?.[1] && dayjs.isDayjs(dates[1]) ? dates[1].format('YYYY-MM-DD') : undefined
       setQueryParams((prev) => ({
         ...prev,
-        dateFrom: dates?.[0]?.format('YYYY-MM-DD'),
-        dateTo: dates?.[1]?.format('YYYY-MM-DD'),
+        dateFrom,
+        dateTo,
         page: 1,
       }))
       mutate()
@@ -176,27 +181,30 @@ const OrderListView: React.FC = () => {
     {
       title: 'Thanh toán',
       key: 'payment',
-      width: 130,
+      width: 180,
       render: (_: unknown, record: OrderPojo) => (
         <div>
-          <Tag color={record.paymentStatus === 'PAID' ? 'green' : 'orange'}>
-            {record.paymentStatus === 'PAID' ? 'Đã TT' : 'Chưa TT'}
-          </Tag>
+          {(() => {
+            const p = normalizePaymentStatus(record.paymentStatus)
+            const cfg = PAYMENT_STATUS_CONFIG[p] ?? { color: 'default', label: p }
+            return <Tag color={cfg.color}>{cfg.label}</Tag>
+          })()}
           <br />
           <Text type="secondary" style={{ fontSize: 11 }}>
-            {record.paymentType ?? record.paymentMethod ?? '—'}
+            {record.paymentStatus ?? '—'}
           </Text>
         </div>
       ),
     },
     {
       title: 'Trạng thái',
-      dataIndex: 'status',
+      dataIndex: 'fulfillmentStatus',
       key: 'status',
       width: 180,
-      render: (status: string) => {
-        const s = normalizeOrderStatus(status)
-        const cfg = ORDER_STATUS_CONFIG[s] ?? { color: 'default', label: status }
+      render: (_status: string, record: OrderPojo) => {
+        const status = record.fulfillmentStatus ?? record.status
+        const s = normalizeFulfillmentStatus(status)
+        const cfg = FULFILLMENT_STATUS_CONFIG[s] ?? { color: 'default', label: status ?? s }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
     },
@@ -213,8 +221,10 @@ const OrderListView: React.FC = () => {
       width: 140,
       fixed: 'right',
       render: (_: unknown, record: OrderPojo) => {
-        const s = normalizeOrderStatus(record.status)
-        const availableActions = ACTIONS_BY_STATUS[s] ?? []
+        const availableActions = getAvailableOrderActions(
+          record.fulfillmentStatus ?? record.status,
+          record.paymentStatus,
+        )
         return (
           <Space size={4}>
             <Button
@@ -360,8 +370,17 @@ const OrderListView: React.FC = () => {
               placeholder="Trạng thái"
               allowClear
               style={{ width: '100%' }}
-              options={ORDER_STATUS_OPTIONS}
-              onChange={(v) => handleFilter('status', v)}
+              options={FULFILLMENT_STATUS_OPTIONS}
+              onChange={(v) => handleFilter('fulfillmentStatus', v)}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={5}>
+            <Select
+              placeholder="Thanh toán"
+              allowClear
+              style={{ width: '100%' }}
+              options={PAYMENT_STATUS_OPTIONS}
+              onChange={(v) => handleFilter('paymentStatus', v)}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
