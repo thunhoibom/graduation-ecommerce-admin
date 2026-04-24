@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   Button,
   Card,
@@ -40,7 +40,10 @@ import {
   type PromotionRuleActionType,
   type PromotionConditionOperator,
   type PromotionRulePojo,
+  type PromotionRuleScope,
 } from '@/services/rest-api/app-api/promotions/promotion-rule-service'
+import { searchCategories, type CategoryPojo } from '@/services/rest-api/app-api/categories/category-service'
+import { searchProducts, type ProductPojo } from '@/services/rest-api/app-api/products/product-service'
 
 dayjs.extend(weekday)
 dayjs.extend(localeData)
@@ -75,18 +78,49 @@ const ACTION_TYPE_OPTIONS: { label: string; value: PromotionRuleActionType }[] =
   { label: 'Miễn phí vận chuyển', value: 'FREE_SHIPPING' },
 ]
 
+const SCOPE_OPTIONS: { label: string; value: PromotionRuleScope }[] = [
+  { label: 'Sản phẩm', value: 'PRODUCT' },
+  { label: 'Danh mục', value: 'CATEGORY' },
+  { label: 'Giỏ hàng', value: 'CART' },
+  { label: 'Vận chuyển', value: 'SHIPPING' },
+]
+
+const CATALOG_SCOPE_OPTIONS: { label: string; value: PromotionRuleScope }[] = [
+  { label: 'Sản phẩm', value: 'PRODUCT' },
+  { label: 'Danh mục', value: 'CATEGORY' },
+]
+
+const CHECKOUT_SCOPE_OPTIONS: { label: string; value: PromotionRuleScope }[] = [
+  { label: 'Giỏ hàng', value: 'CART' },
+  { label: 'Vận chuyển', value: 'SHIPPING' },
+]
+
+const CATALOG_FACT_FIELD_OPTIONS = [
+  { label: 'Sản phẩm', value: 'cart.has_any_product' },
+  { label: 'Danh mục', value: 'cart.has_any_category' },
+]
+
+const CHECKOUT_FACT_FIELD_OPTIONS = FACT_FIELD_OPTIONS.filter(
+  (item) => item.value !== 'cart.has_any_product' && item.value !== 'cart.has_any_category',
+)
+
+const CATALOG_OPERATOR_OPTIONS: { label: string; value: PromotionConditionOperator }[] = [
+  { label: 'Thuộc danh sách', value: 'IN' },
+]
+
 type RuleFormValues = {
   name: string
   priority: number
   combinable: boolean
   active: boolean
+  scope: PromotionRuleScope
   activeFrom?: dayjs.Dayjs
   activeUntil?: dayjs.Dayjs
   mutualExclusionGroup?: string
   conditions: Array<{
     factField: string
     operator: PromotionConditionOperator
-    targetValue: string
+    targetValue: string | string[]
   }>
   actions: Array<{
     actionType: PromotionRuleActionType
@@ -96,28 +130,70 @@ type RuleFormValues = {
 
 const PromotionRulesView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
-  const [open, setOpen] = useState(false)
+  const [modalKind, setModalKind] = useState<'catalog' | 'checkout' | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null)
   const [form] = Form.useForm<RuleFormValues>()
+  const conditions = Form.useWatch('conditions', form) ?? []
 
   const { data, isLoading, mutate } = useAxiosSWR<PromotionRulePojo[]>(
     SWR_KEYS.PROMOTION_RULE_LIST,
     async () => listPromotionRules(),
     { revalidateOnMount: true },
   )
+  const { data: categoriesResponse } = useAxiosSWR<{ items: CategoryPojo[] }>(
+    SWR_KEYS.CATEGORY_LIST,
+    async () => searchCategories({ pageSize: 500 }),
+    { revalidateOnMount: true },
+  )
+  const categoryOptions = useMemo(
+    () =>
+      (categoriesResponse?.items ?? []).map((category) => ({
+        label: `${category.name} (${category.code})`,
+        value: String(category.id),
+      })),
+    [categoriesResponse?.items],
+  )
+  const { data: productsResponse } = useAxiosSWR<{ items: ProductPojo[] }>(
+    SWR_KEYS.PRODUCT_LIST,
+    async () => searchProducts({ pageSize: 500 }),
+    { revalidateOnMount: true },
+  )
+  const productOptions = useMemo(
+    () =>
+      (productsResponse?.items ?? []).map((product) => ({
+        label: `${product.name} (${product.barcode})`,
+        value: product.barcode,
+      })),
+    [productsResponse?.items],
+  )
 
-  const openCreate = () => {
+  const openCreateCatalog = () => {
     setEditingRuleId(null)
     form.resetFields()
     form.setFieldsValue({
       priority: 0,
       active: true,
       combinable: true,
+      scope: 'PRODUCT',
+      conditions: [{ factField: 'cart.has_any_product', operator: 'IN', targetValue: '' }],
+      actions: [{ actionType: 'PERCENTAGE_DISCOUNT', value: 10 }],
+    })
+    setModalKind('catalog')
+  }
+
+  const openCreateCheckout = () => {
+    setEditingRuleId(null)
+    form.resetFields()
+    form.setFieldsValue({
+      priority: 0,
+      active: true,
+      combinable: true,
+      scope: 'CART',
       conditions: [{ factField: 'cart.subtotal', operator: 'GTE', targetValue: '0' }],
       actions: [{ actionType: 'PERCENTAGE_DISCOUNT', value: 10 }],
     })
-    setOpen(true)
+    setModalKind('checkout')
   }
 
   const openEdit = (rule: PromotionRulePojo) => {
@@ -128,6 +204,7 @@ const PromotionRulesView: React.FC = () => {
       priority: rule.priority,
       active: rule.active,
       combinable: rule.combinable,
+      scope: rule.scope ?? 'CART',
       activeFrom: rule.activeFrom ? dayjs(rule.activeFrom) : undefined,
       activeUntil: rule.activeUntil ? dayjs(rule.activeUntil) : undefined,
       mutualExclusionGroup: rule.mutualExclusionGroup,
@@ -135,7 +212,13 @@ const PromotionRulesView: React.FC = () => {
         rule.conditions?.map((condition) => ({
           factField: condition.factField,
           operator: condition.operator,
-          targetValue: condition.targetValue,
+          targetValue:
+            condition.factField === 'cart.has_any_category' || condition.factField === 'cart.has_any_product'
+              ? condition.targetValue
+                  .split(',')
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+              : condition.targetValue,
         })) ?? [{ factField: 'cart.subtotal', operator: 'GTE', targetValue: '0' }],
       actions:
         rule.actions?.map((action) => ({
@@ -143,30 +226,46 @@ const PromotionRulesView: React.FC = () => {
           value: action.value,
         })) ?? [{ actionType: 'PERCENTAGE_DISCOUNT', value: 10 }],
     })
-    setOpen(true)
+    const scope = rule.scope ?? 'CART'
+    setModalKind(scope === 'PRODUCT' || scope === 'CATEGORY' ? 'catalog' : 'checkout')
   }
 
   const closeModal = () => {
-    setOpen(false)
+    setModalKind(null)
     setEditingRuleId(null)
   }
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
+      const hasFreeShipping = values.actions.some((a) => a.actionType === 'FREE_SHIPPING')
+      const hasPriceDiscount = values.actions.some((a) => a.actionType !== 'FREE_SHIPPING')
+      if ((values.scope === 'PRODUCT' || values.scope === 'CATEGORY') && hasFreeShipping) {
+        messageApi.error('Rule scope PRODUCT/CATEGORY không hỗ trợ FREE_SHIPPING')
+        return
+      }
+      if (values.scope === 'SHIPPING' && hasPriceDiscount) {
+        messageApi.error('Rule scope SHIPPING chỉ nên dùng FREE_SHIPPING')
+        return
+      }
       setSaving(true)
       const payload: PromotionRulePojo = {
         name: values.name,
         priority: values.priority,
         combinable: values.combinable,
         active: values.active,
+        scope: values.scope,
         activeFrom: values.activeFrom ? values.activeFrom.toISOString() : undefined,
         activeUntil: values.activeUntil ? values.activeUntil.toISOString() : undefined,
         mutualExclusionGroup: values.mutualExclusionGroup || undefined,
         conditions: values.conditions.map((c) => ({
           factField: c.factField,
           operator: c.operator,
-          targetValue: c.targetValue,
+          targetValue:
+            (c.factField === 'cart.has_any_category' || c.factField === 'cart.has_any_product') &&
+            Array.isArray(c.targetValue)
+              ? c.targetValue.join(',')
+              : String(c.targetValue ?? ''),
         })),
         actions: values.actions.map((a) => ({
           actionType: a.actionType,
@@ -213,6 +312,22 @@ const PromotionRulesView: React.FC = () => {
           </Text>
         </Space>
       ),
+    },
+    {
+      title: 'Scope',
+      dataIndex: 'scope',
+      width: 120,
+      align: 'center',
+      render: (scope?: PromotionRuleScope) => {
+        const safeScope = scope ?? 'CART'
+        const color =
+          safeScope === 'PRODUCT' || safeScope === 'CATEGORY'
+            ? 'purple'
+            : safeScope === 'SHIPPING'
+              ? 'cyan'
+              : 'blue'
+        return <Tag color={color}>{safeScope}</Tag>
+      },
     },
     {
       title: 'Ưu tiên',
@@ -288,6 +403,11 @@ const PromotionRulesView: React.FC = () => {
     },
   ]
 
+  const isCatalogModal = modalKind === 'catalog'
+  const scopeOptions = isCatalogModal ? CATALOG_SCOPE_OPTIONS : CHECKOUT_SCOPE_OPTIONS
+  const factFieldOptions = isCatalogModal ? CATALOG_FACT_FIELD_OPTIONS : CHECKOUT_FACT_FIELD_OPTIONS
+  const operatorOptions = isCatalogModal ? CATALOG_OPERATOR_OPTIONS : OPERATOR_OPTIONS
+
   return (
     <>
       {contextHolder}
@@ -296,9 +416,14 @@ const PromotionRulesView: React.FC = () => {
           <Title level={3} style={{ margin: 0 }}>Trình quản lý quy tắc khuyến mãi</Title>
           <Text type="secondary">Cấu hình điều kiện và hành động khuyến mãi</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          Thêm quy tắc
-        </Button>
+        <Space>
+          <Button icon={<PlusOutlined />} onClick={openCreateCatalog}>
+            Thêm rule Catalog
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateCheckout}>
+            Thêm rule Checkout
+          </Button>
+        </Space>
       </div>
 
       <Card>
@@ -313,8 +438,12 @@ const PromotionRulesView: React.FC = () => {
       </Card>
 
       <Modal
-        title={editingRuleId ? 'Chỉnh sửa quy tắc khuyến mãi' : 'Tạo quy tắc khuyến mãi'}
-        open={open}
+        title={
+          editingRuleId
+            ? `Chỉnh sửa quy tắc ${isCatalogModal ? 'Catalog' : 'Checkout'}`
+            : `Tạo quy tắc ${isCatalogModal ? 'Catalog' : 'Checkout'}`
+        }
+        open={modalKind !== null}
         onCancel={closeModal}
         onOk={handleSubmit}
         confirmLoading={saving}
@@ -330,18 +459,23 @@ const PromotionRulesView: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="priority" label="Độ ưu tiên" rules={[{ required: true }]}>
-                <InputNumber min={0} style={{ width: '100%' }} />
+              <Form.Item name="scope" label="Scope" rules={[{ required: true, message: 'Chọn scope' }]}>
+                <Select options={scopeOptions} placeholder="Chọn scope" />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="mutualExclusionGroup" label="Nhóm loại trừ">
-                <Input placeholder="FLASH_SALE" />
+              <Form.Item name="priority" label="Độ ưu tiên" rules={[{ required: true }]}>
+                <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="mutualExclusionGroup" label="Nhóm loại trừ">
+                <Input placeholder="FLASH_SALE" />
+              </Form.Item>
+            </Col>
             <Col span={6}>
               <Form.Item name="active" label="Kích hoạt" valuePropName="checked">
                 <Switch />
@@ -357,7 +491,7 @@ const PromotionRulesView: React.FC = () => {
                 <DatePicker showTime style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col span={4}>
               <Form.Item name="activeUntil" label="Hiệu lực đến">
                 <DatePicker showTime style={{ width: '100%' }} />
               </Form.Item>
@@ -376,7 +510,7 @@ const PromotionRulesView: React.FC = () => {
                           name={[field.name, 'factField']}
                           rules={[{ required: true }]}
                         >
-                          <Select options={FACT_FIELD_OPTIONS} placeholder="Trường dữ kiện" />
+                          <Select options={factFieldOptions} placeholder="Trường dữ kiện" />
                         </Form.Item>
                       </Col>
                       <Col span={4}>
@@ -385,17 +519,75 @@ const PromotionRulesView: React.FC = () => {
                           name={[field.name, 'operator']}
                           rules={[{ required: true }]}
                         >
-                          <Select options={OPERATOR_OPTIONS} placeholder="Toán tử" />
+                          <Select options={operatorOptions} placeholder="Toán tử" />
                         </Form.Item>
                       </Col>
                       <Col span={10}>
-                        <Form.Item
-                          {...field}
-                          name={[field.name, 'targetValue']}
-                          rules={[{ required: true }]}
-                        >
-                          <Input placeholder="Giá trị mục tiêu" />
-                        </Form.Item>
+                        {conditions?.[field.name]?.factField === 'cart.has_any_category' ? (
+                          <Form.Item
+                            {...field}
+                            name={[field.name, 'targetValue']}
+                            rules={[{ required: true, message: 'Chọn ít nhất 1 danh mục' }]}
+                            getValueProps={(value) => {
+                              if (Array.isArray(value)) {
+                                return { value }
+                              }
+                              if (typeof value === 'string' && value.trim().length > 0) {
+                                return {
+                                  value: value
+                                    .split(',')
+                                    .map((item) => item.trim())
+                                    .filter(Boolean),
+                                }
+                              }
+                              return { value: [] as string[] }
+                            }}
+                          >
+                            <Select
+                              mode="multiple"
+                              options={categoryOptions}
+                              placeholder="Chọn danh mục"
+                              optionFilterProp="label"
+                              showSearch
+                            />
+                          </Form.Item>
+                        ) : conditions?.[field.name]?.factField === 'cart.has_any_product' ? (
+                          <Form.Item
+                            {...field}
+                            name={[field.name, 'targetValue']}
+                            rules={[{ required: true, message: 'Chọn ít nhất 1 sản phẩm' }]}
+                            getValueProps={(value) => {
+                              if (Array.isArray(value)) {
+                                return { value }
+                              }
+                              if (typeof value === 'string' && value.trim().length > 0) {
+                                return {
+                                  value: value
+                                    .split(',')
+                                    .map((item) => item.trim())
+                                    .filter(Boolean),
+                                }
+                              }
+                              return { value: [] as string[] }
+                            }}
+                          >
+                            <Select
+                              mode="multiple"
+                              options={productOptions}
+                              placeholder="Chọn sản phẩm"
+                              optionFilterProp="label"
+                              showSearch
+                            />
+                          </Form.Item>
+                        ) : (
+                          <Form.Item
+                            {...field}
+                            name={[field.name, 'targetValue']}
+                            rules={[{ required: true }]}
+                          >
+                            <Input placeholder="Giá trị mục tiêu" />
+                          </Form.Item>
+                        )}
                       </Col>
                       <Col span={2}>
                         <Button

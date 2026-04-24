@@ -36,12 +36,15 @@ export type PromotionRuleAction = {
   value: number
 }
 
+export type PromotionRuleScope = 'PRODUCT' | 'CATEGORY' | 'CART' | 'SHIPPING'
+
 export type PromotionRulePojo = {
   id?: number
   name: string
   priority: number
   combinable: boolean
   active: boolean
+  scope: PromotionRuleScope
   activeFrom?: string
   activeUntil?: string
   mutualExclusionGroup?: string

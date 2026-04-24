@@ -45,8 +45,12 @@ const { Title, Text, Paragraph } = Typography
 const STEP_ICON_MAP: Record<string, React.ReactNode> = {
   PENDING: <ClockCircleOutlined />,
   CONFIRMED: <ExclamationCircleOutlined />,
-  DELIVERY_ON_ROUTE: <CarOutlined />,
-  DELIVERY_COMPLETE: <CheckCircleOutlined />,
+  PROCESSING: <ExclamationCircleOutlined />,
+  READY_TO_PICK: <SendOutlined />,
+  PICKED_UP: <CarOutlined />,
+  DELIVERING: <CarOutlined />,
+  DELIVERED: <CheckCircleOutlined />,
+  COMPLETED: <CheckCircleOutlined />,
 }
 
 const formatVND = (value: number | undefined) => {
@@ -224,7 +228,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                   <>
                     <Alert
                       message="Xác nhận hoặc từ chối đơn hàng"
-                      description="Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái Đã xác nhận và bắt đầu đóng gói."
+                      description="Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái Đang chuẩn bị hàng."
                       type="info"
                       showIcon
                       style={{ marginBottom: 16 }}
@@ -337,7 +341,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                   />
                 )}
 
-                {(s === 'DELIVERY_COMPLETE') && (
+                {(s === 'COMPLETED' || s === 'DELIVERED') && (
                   <Alert
                     message="Đơn hàng đã hoàn tất"
                     description="Đơn hàng đã được giao thành công và thu tiền. Không cần thực hiện thêm thao tác nào."

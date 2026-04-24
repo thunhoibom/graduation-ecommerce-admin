@@ -28,6 +28,7 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { RangePickerProps } from 'antd/es/date-picker'
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import {
@@ -43,6 +44,7 @@ import { addNewOrderListener } from '@/shared/notifications/admin-notification-e
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
+type DashboardRangeValue = Parameters<NonNullable<RangePickerProps['onChange']>>[0]
 
 // Format VND currency
 const formatVND = (value: number | undefined) => {
@@ -67,6 +69,7 @@ const STATUS_COLORS: Record<string, string> = {
   PAYMENT_CANCELLED: 'red',
   PAID_UNCONFIRMED: 'cyan',
   PAID_CONFIRMED: 'blue',
+  PROCESSING: 'blue',
   DELIVERY_ON_ROUTE: 'geekblue',
   DELIVERY_COMPLETE: 'green',
   DELIVERY_CANCELLED: 'red',
@@ -82,6 +85,7 @@ const STATUS_LABELS: Record<string, string> = {
   PAYMENT_CANCELLED: 'Hủy thanh toán',
   PAID_UNCONFIRMED: 'Đã thanh toán, chờ duyệt',
   PAID_CONFIRMED: 'Đã duyệt đơn',
+  PROCESSING: 'Đang chuẩn bị hàng',
   DELIVERY_ON_ROUTE: 'Đang giao hàng',
   DELIVERY_COMPLETE: 'Giao thành công',
   DELIVERY_FAILED: 'Giao hàng thất bại',
@@ -94,7 +98,7 @@ const DashboardView: React.FC = () => {
   const [stats, setStats] = useState<AdminDashboardStatsPojo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
+  const [dateRange, setDateRange] = useState<DashboardRangeValue>(null)
 
   const fetchStats = useCallback(async (from?: string, to?: string) => {
     setLoading(true)
@@ -129,7 +133,7 @@ const DashboardView: React.FC = () => {
     return unsubscribe
   }, [dateRange, fetchStats])
 
-  const handleDateChange = (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
+  const handleDateChange: RangePickerProps['onChange'] = (dates) => {
     setDateRange(dates)
     if (dates && dates[0] && dates[1]) {
       fetchStats(
@@ -340,59 +344,57 @@ const DashboardView: React.FC = () => {
                 {(!stats?.revenueByPeriod || stats.revenueByPeriod.length === 0) ? (
                   <Empty description="Không có dữ liệu doanh thu" />
                 ) : (
-                  <Row gutter={[8, 8]}>
-                    {(stats.revenueByPeriod as RevenueStatPojo[])
-                      .slice(-7) // Show last 7 periods
-                      .map((item: RevenueStatPojo) => {
-                        const maxRevenue = Math.max(
-                          ...(stats.revenueByPeriod as RevenueStatPojo[]).map((r) => r.revenue),
-                          1,
-                        )
-                        const barHeight = Math.max(
-                          Math.round((item.revenue / maxRevenue) * 120),
-                          4,
-                        )
-                        return (
-                          <Col key={item.date} span={24} style={{ height: 160 }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                height: '100%',
-                                justifyContent: 'flex-end',
-                              }}
-                            >
-                              <Tooltip title={formatVND(item.revenue)}>
-                                <div
-                                  style={{
-                                    width: 40,
-                                    height: barHeight,
-                                    background:
-                                      barHeight > 80
-                                        ? 'linear-gradient(180deg, #52c41a, #73d13d)'
-                                        : 'linear-gradient(180deg, #5856d6, #a78bfa)',
-                                    borderRadius: '6px 6px 0 0',
-                                    minHeight: 4,
-                                    transition: 'height 0.3s ease',
-                                    cursor: 'pointer',
-                                  }}
-                                />
-                              </Tooltip>
-                              <Text
-                                type="secondary"
-                                style={{ fontSize: 11, marginTop: 6 }}
+                  (() => {
+                    const recentRevenue = (stats.revenueByPeriod as RevenueStatPojo[]).slice(-7)
+                    const maxRevenue = Math.max(...recentRevenue.map((r) => r.revenue), 1)
+
+                    return (
+                      <Row gutter={8} align="bottom" wrap={false}>
+                        {recentRevenue.map((item: RevenueStatPojo) => {
+                          const barHeight = Math.max(
+                            Math.round((item.revenue / maxRevenue) * 120),
+                            4,
+                          )
+                          return (
+                            <Col key={item.date} flex="1 0 0" style={{ height: 160, minWidth: 70 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  height: '100%',
+                                  justifyContent: 'flex-end',
+                                }}
                               >
-                                {dayjs(item.date).format('DD/MM')}
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: 10 }}>
-                                {item.orderCount} đơn
-                              </Text>
-                            </div>
-                          </Col>
-                        )
-                      })}
-                  </Row>
+                                <Tooltip title={formatVND(item.revenue)}>
+                                  <div
+                                    style={{
+                                      width: 40,
+                                      height: barHeight,
+                                      background:
+                                        barHeight > 80
+                                          ? 'linear-gradient(180deg, #52c41a, #73d13d)'
+                                          : 'linear-gradient(180deg, #5856d6, #a78bfa)',
+                                      borderRadius: '6px 6px 0 0',
+                                      minHeight: 4,
+                                      transition: 'height 0.3s ease',
+                                      cursor: 'pointer',
+                                    }}
+                                  />
+                                </Tooltip>
+                                <Text type="secondary" style={{ fontSize: 11, marginTop: 6 }}>
+                                  {dayjs(item.date).format('DD/MM')}
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: 10 }}>
+                                  {item.orderCount} đơn
+                                </Text>
+                              </div>
+                            </Col>
+                          )
+                        })}
+                      </Row>
+                    )
+                  })()
                 )}
               </Card>
             </Col>

@@ -4,12 +4,13 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Table, Tag, Space, Button, Typography, Card, Row, Col,
-  Select, DatePicker, Input, message, Popconfirm,
+  Select, DatePicker, Input, message, Dropdown, Modal,
 } from 'antd'
 import {
   EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  SyncOutlined, PlusOutlined, SearchOutlined,
+  SyncOutlined, PlusOutlined, SearchOutlined, DownOutlined,
 } from '@ant-design/icons'
+import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
@@ -133,6 +134,39 @@ const OrderListView: React.FC = () => {
     }
   }
 
+  const openReasonModal = (
+    title: string,
+    placeholder: string,
+    onSubmit: (reason: string) => void,
+  ) => {
+    let reason = ''
+    Modal.confirm({
+      title,
+      content: (
+        <Input.TextArea
+          rows={3}
+          placeholder={placeholder}
+          onChange={(e) => {
+            reason = e.target.value
+          }}
+        />
+      ),
+      okText: 'Xác nhận',
+      okButtonProps: { danger: true },
+      cancelText: 'Hủy',
+      onOk: () => onSubmit(reason),
+    })
+  }
+
+  const openConfirmModal = (title: string, onSubmit: () => void) => {
+    Modal.confirm({
+      title,
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      onOk: onSubmit,
+    })
+  }
+
   const columns: ColumnsType<OrderPojo> = [
     {
       title: 'Mã đơn',
@@ -225,110 +259,79 @@ const OrderListView: React.FC = () => {
           record.fulfillmentStatus ?? record.status,
           record.paymentStatus,
         )
+        const orderId = (record.id ?? record.buyOrder)!
+        const menuItems: MenuProps['items'] = [
+          {
+            key: 'view',
+            icon: <EyeOutlined />,
+            label: 'Xem chi tiết',
+          },
+          ...availableActions.map((action) => {
+            switch (action) {
+              case 'confirm':
+                return { key: action, icon: <CheckCircleOutlined />, label: 'Xác nhận đơn' }
+              case 'reject':
+                return { key: action, icon: <CloseCircleOutlined />, danger: true, label: 'Từ chối đơn' }
+              case 'handover':
+                return { key: action, icon: <SyncOutlined />, label: 'Bàn giao vận chuyển' }
+              case 'complete':
+                return { key: action, icon: <SyncOutlined />, label: 'Hoàn tất giao hàng' }
+              case 'deliveryFailed':
+                return { key: action, icon: <CloseCircleOutlined />, danger: true, label: 'Đánh dấu giao thất bại' }
+              case 'deliveryCancelled':
+                return { key: action, icon: <CloseCircleOutlined />, danger: true, label: 'Thu hồi vận chuyển' }
+              case 'markReturned':
+                return { key: action, icon: <SyncOutlined />, label: 'Đánh dấu hoàn hàng' }
+              default:
+                return null
+            }
+          }).filter(Boolean),
+        ]
+
+        const onMenuClick: MenuProps['onClick'] = ({ key }) => {
+          if (key === 'view') {
+            router.push(`/orders/${orderId}`)
+            return
+          }
+          const action = key as OrderStatusAction
+          if (action === 'reject') {
+            openReasonModal('Từ chối đơn hàng', 'Lý do từ chối...', (reason) => {
+              handleStatusAction(orderId, 'reject', reason)
+            })
+            return
+          }
+          if (action === 'deliveryCancelled') {
+            openReasonModal('Thu hồi vận chuyển', 'Lý do thu hồi...', (reason) => {
+              handleStatusAction(orderId, 'deliveryCancelled', reason)
+            })
+            return
+          }
+          if (action === 'markReturned') {
+            openReasonModal('Đánh dấu hoàn hàng', 'Lý do hoàn hàng (tuỳ chọn)...', (reason) => {
+              handleStatusAction(orderId, 'markReturned', reason)
+            })
+            return
+          }
+          const actionLabels: Record<OrderStatusAction, string> = {
+            confirm: 'xác nhận đơn',
+            reject: 'từ chối đơn',
+            handover: 'bàn giao vận chuyển',
+            complete: 'hoàn tất giao hàng',
+            deliveryFailed: 'đánh dấu giao thất bại',
+            deliveryCancelled: 'thu hồi vận chuyển',
+            markReturned: 'đánh dấu hoàn hàng',
+          }
+          openConfirmModal(`Xác nhận ${actionLabels[action]}?`, () => {
+            handleStatusAction(orderId, action)
+          })
+        }
+
         return (
-          <Space size={4}>
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => router.push(`/orders/${record.id ?? record.buyOrder}`)}
-              title="Xem chi tiết"
-            />
-            {/* Inline status actions */}
-            {availableActions.includes('confirm') && (
-              <>
-                <Button
-                  type="text"
-                  icon={<CheckCircleOutlined />}
-                  style={{ color: '#52c41a' }}
-                  onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'confirm')}
-                  title="Xác nhận"
-                />
-                <Popconfirm
-                  title="Từ chối đơn hàng"
-                  description={
-                    <Input.TextArea
-                      rows={2}
-                      placeholder="Lý do từ chối..."
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                    />
-                  }
-                  okText="Từ chối"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => {
-                    handleStatusAction((record.id ?? record.buyOrder)!, 'reject', rejectReason)
-                    setRejectReason('')
-                  }}
-                >
-                  <Button
-                    type="text"
-                    icon={<CloseCircleOutlined />}
-                    danger
-                    title="Từ chối"
-                  />
-                </Popconfirm>
-              </>
-            )}
-            {availableActions.includes('handover') && (
-              <Button
-                type="text"
-                icon={<SyncOutlined />}
-                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'handover')}
-                title="Bàn giao đơn vị vận chuyển"
-              />
-            )}
-            {availableActions.includes('complete') && (
-              <Button
-                type="text"
-                icon={<SyncOutlined />}
-                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'complete')}
-                title="Hoàn tất giao hàng"
-              />
-            )}
-            {availableActions.includes('deliveryFailed') && (
-              <Button
-                type="text"
-                danger
-                icon={<CloseCircleOutlined />}
-                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'deliveryFailed')}
-                title="Đánh dấu giao thất bại"
-              />
-            )}
-            {availableActions.includes('deliveryCancelled') && (
-              <Popconfirm
-                title="Thu hồi vận chuyển"
-                description={
-                  <Input.TextArea
-                    rows={2}
-                    placeholder="Lý do thu hồi..."
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                  />
-                }
-                okText="Thu hồi"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => {
-                  handleStatusAction((record.id ?? record.buyOrder)!, 'deliveryCancelled', cancelReason)
-                  setCancelReason('')
-                }}
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<CloseCircleOutlined />}
-                  title="Thu hồi vận chuyển"
-                />
-              </Popconfirm>
-            )}
-            {availableActions.includes('markReturned') && (
-              <Button
-                type="text"
-                icon={<SyncOutlined />}
-                onClick={() => handleStatusAction((record.id ?? record.buyOrder)!, 'markReturned')}
-                title="Đánh dấu hoàn hàng"
-              />
-            )}
-          </Space>
+          <Dropdown menu={{ items: menuItems, onClick: onMenuClick }} trigger={['click']}>
+            <Button size="small">
+              Thao tác <DownOutlined />
+            </Button>
+          </Dropdown>
         )
       },
     },
