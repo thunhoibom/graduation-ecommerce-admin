@@ -54,6 +54,10 @@ export type FinanceCallbackLogItem = {
 export type FinanceReconciliationMismatchItem = {
   mismatchKey: string
   orderId: number
+  orderStatus?: string
+  paymentStatus?: string
+  orderTotal?: number
+  transactionToken?: string
   type: string
   description: string
   severity: string
@@ -116,6 +120,8 @@ export const getFinanceCallbackLogs = (
   params: FinancePagingParams & {
     orderId?: number
     result?: string
+    from?: string
+    to?: string
   },
 ) => financeService.get<DataPageResponse<FinanceCallbackLogItem>>('/payment-callback-logs', { params })
 

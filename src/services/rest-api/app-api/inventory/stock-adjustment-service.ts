@@ -55,6 +55,12 @@ export type RestockSuggestionPojo = {
 export const recordStockAdjustment = (payload: StockAdjustmentRequest) =>
   appApiIns.post<StockAdjustmentPojo>(STOCK_BASE, payload)
 
+export const listStockAdjustments = (params?: { page?: number; size?: number }) =>
+  appApiIns.get<{ items: StockAdjustmentPojo[]; totalCount?: number; pageIndex?: number; pageSize?: number }>(
+    STOCK_BASE,
+    { params }
+  )
+
 export const getStockTimelineBySku = (sku: string, params?: { page?: number; size?: number }) =>
   appApiIns.get<StockAdjustmentPojo[]>(`${STOCK_BASE}/timeline/sku/${encodeURIComponent(sku)}`, { params })
 

@@ -81,8 +81,8 @@ const PRODUCT_CSV_TEMPLATE = [
 // ─── Variant CSV ────────────────────────────────────────────────
 
 const VARIANT_CSV_TEMPLATE = [
-  ['sku', 'productBarcode', 'size', 'color', 'attributes', 'priceModifier', 'currentStock', 'criticalStock', 'barcode', 'active'],
-  ['SKU001-S-RED', 'SKU001', 'S', 'Đỏ', '{"material":"cotton"}', '0', '10', '3', '8901234567890', 'true'],
+  ['sku', 'productBarcode', 'size', 'color', 'attributes', 'priceModifier', 'criticalStock', 'barcode', 'active'],
+  ['SKU001-S-RED', 'SKU001', 'S', 'Đỏ', '{"material":"cotton"}', '0', '3', '8901234567890', 'true'],
 ]
 
 // ─── Component ──────────────────────────────────────────────────
@@ -165,6 +165,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
         priority: Number(values.priority ?? 100),
         combinable: Boolean(values.combinable),
         active: true,
+        scope: 'PRODUCT' as const,
         conditions: [
           {
             factField: 'cart.has_any_product',
@@ -246,7 +247,6 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
       const payload: {
         ids: number[]
         priceModifier?: number
-        currentStock?: number
         active?: boolean
       } = {
         ids: selectedVariantIds,
@@ -254,9 +254,6 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
 
       if (values.priceModifier !== undefined && values.priceModifier !== null) {
         payload.priceModifier = Number(values.priceModifier)
-      }
-      if (values.currentStock !== undefined && values.currentStock !== null) {
-        payload.currentStock = Number(values.currentStock)
       }
       if (values.activeState === 'ACTIVE') {
         payload.active = true
@@ -266,7 +263,6 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
 
       if (
         payload.priceModifier === undefined &&
-        payload.currentStock === undefined &&
         payload.active === undefined
       ) {
         messageApi.warning('Vui lòng chọn ít nhất một trường cần cập nhật.')
@@ -616,13 +612,6 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
               <InputNumber style={{ width: '100%' }} placeholder="Giữ nguyên nếu bỏ trống" />
             </Form.Item>
             <Form.Item
-              name="currentStock"
-              label="Tồn kho"
-              style={{ minWidth: 180 }}
-            >
-              <InputNumber min={0} style={{ width: '100%' }} placeholder="Giữ nguyên nếu bỏ trống" />
-            </Form.Item>
-            <Form.Item
               name="activeState"
               label="Trạng thái active"
               style={{ minWidth: 180 }}
@@ -790,7 +779,7 @@ const BulkOperationsModal: React.FC<BulkOperationsModalProps> = ({
           </Space>
         </Space>
         <Divider />
-        <Alert type="info" message="Cột: sku, productBarcode, size, color, attributes, priceModifier, currentStock, criticalStock, barcode, active." />
+        <Alert type="info" message="Cột: sku, productBarcode, size, color, attributes, priceModifier, criticalStock, barcode, active. (Tồn kho quản lý ở màn Inventory)" />
       </div>
     ),
   }

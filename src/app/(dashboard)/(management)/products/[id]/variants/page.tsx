@@ -278,31 +278,34 @@ const VariantManagementView: React.FC = () => {
     },
     {
       title: 'Tồn thực tế',
-      dataIndex: 'currentStock',
+      dataIndex: 'onHand',
       key: 'currentStock',
       width: 100,
       align: 'right',
-      render: (stock: number | undefined) => <Text>{stock ?? 0}</Text>,
+      render: (_stock: number | undefined, record: ProductVariantPojo) => <Text>{record.onHand ?? record.currentStock ?? 0}</Text>,
     },
     {
       title: 'Giữ chỗ',
-      dataIndex: 'reservedStock',
+      dataIndex: 'reserved',
       key: 'reservedStock',
       width: 100,
       align: 'right',
-      render: (reserved: number | undefined) => (
-        <Text type={reserved && reserved > 0 ? 'warning' : 'secondary'}>
-          {reserved ?? 0}
+      render: (_reserved: number | undefined, record: ProductVariantPojo) => {
+        const reservedValue = record.reserved ?? record.reservedStock ?? 0
+        return (
+        <Text type={reservedValue > 0 ? 'warning' : 'secondary'}>
+          {reservedValue}
         </Text>
-      ),
+      )},
     },
     {
       title: 'Khả dụng',
-      dataIndex: 'availableStock',
+      dataIndex: 'availableToSell',
       key: 'availableStock',
       width: 100,
       align: 'right',
-      render: (available: number | undefined, record: ProductVariantPojo) => {
+      render: (_available: number | undefined, record: ProductVariantPojo) => {
+        const available = record.availableToSell ?? record.availableStock ?? 0
         const critical = record.criticalStock ?? 5
         const color = !available ? 'red' : available <= critical ? 'orange' : 'green'
         return (
@@ -350,7 +353,6 @@ const VariantManagementView: React.FC = () => {
                 size: record.size,
                 color: record.color,
                 priceModifier: record.priceModifier,
-                currentStock: record.currentStock,
                 criticalStock: record.criticalStock,
                 active: record.active,
               })
@@ -491,7 +493,6 @@ const VariantManagementView: React.FC = () => {
             size: combo.size,
             color: combo.color,
             priceModifier: Number(values.priceModifier ?? 0),
-            currentStock: Number(values.currentStock ?? 0),
             criticalStock: Number(values.criticalStock ?? 0),
             active: true,
           } as ProductVariantPojo
@@ -599,7 +600,6 @@ const VariantManagementView: React.FC = () => {
         size: values.size as string,
         color: values.color as string | undefined,
         priceModifier: values.priceModifier as number | undefined,
-        currentStock: values.currentStock as number | undefined,
         criticalStock: values.criticalStock as number | undefined,
         active: values.active as boolean | undefined,
         images: imagePojos,
@@ -664,7 +664,6 @@ const VariantManagementView: React.FC = () => {
                   sizes: sizeOptions.slice(0, 2),
                   colors: colorOptions.slice(0, 2),
                   priceModifier: 0,
-                  currentStock: 0,
                   criticalStock: 0,
                 })
                 setMatrixModalOpen(true)
@@ -822,12 +821,7 @@ const VariantManagementView: React.FC = () => {
           </Row>
 
           <Row gutter={[16, 0]}>
-            <Col span={12}>
-              <Form.Item name="currentStock" label="Tồn kho">
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name="criticalStock" label="Ngưỡng cảnh báo">
                 <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
               </Form.Item>
@@ -867,7 +861,6 @@ const VariantManagementView: React.FC = () => {
             sizes: sizeOptions.slice(0, 2),
             colors: colorOptions.slice(0, 2),
             priceModifier: 0,
-            currentStock: 0,
             criticalStock: 0,
           }}
         >
@@ -896,17 +889,12 @@ const VariantManagementView: React.FC = () => {
           </Form.Item>
 
           <Row gutter={[12, 0]}>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item name="priceModifier" label="Modifier giá">
                 <InputNumber style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={8}>
-              <Form.Item name="currentStock" label="Tồn kho">
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item name="criticalStock" label="Ngưỡng">
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>

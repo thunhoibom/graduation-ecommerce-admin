@@ -36,6 +36,9 @@ export type ProductPojo = {
   currentStock?: number
   reservedStock?: number
   availableStock?: number
+  onHand?: number
+  reserved?: number
+  availableToSell?: number
   criticalStock?: number
   category?: ProductCategoryPojo
   images?: ImagePojo[]
@@ -53,6 +56,9 @@ export type ProductVariantPojo = {
   currentStock?: number
   reservedStock?: number
   availableStock?: number
+  onHand?: number
+  reserved?: number
+  availableToSell?: number
   criticalStock?: number
   active?: boolean
   barcode?: string
@@ -236,7 +242,6 @@ export type BulkOperationResult = {
 export type VariantBulkUpdateRequest = {
   ids: number[]
   priceModifier?: number
-  currentStock?: number
   active?: boolean
 }
 

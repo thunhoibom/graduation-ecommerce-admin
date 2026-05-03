@@ -15,7 +15,6 @@ import {
   NodeIndexOutlined,
   GlobalOutlined,
   PictureOutlined,
-  SettingOutlined,
   InboxOutlined,
   ShopOutlined,
   SwapOutlined,
@@ -168,11 +167,6 @@ const menuItems: MenuProps['items'] = [
         label: <Link href={paths.finance.settlements}>Chốt số kỳ kế toán</Link>,
       },
     ],
-  },
-  {
-    key: 'settings',
-    icon: <SettingOutlined />,
-    label: <Link href={paths.settings.root}>Cài đặt</Link>,
   },
 ]
 

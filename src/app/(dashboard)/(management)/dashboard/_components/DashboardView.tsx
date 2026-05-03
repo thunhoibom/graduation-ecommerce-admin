@@ -39,7 +39,11 @@ import {
   AdminDashboardStatsPojo,
 } from '../types'
 import { dashboardService } from '../_services/dashboard-service'
-import { normalizeOrderStatus } from '@/constants/order-status'
+import {
+  FULFILLMENT_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  normalizeOrderStatus,
+} from '@/constants/order-status'
 import { addNewOrderListener } from '@/shared/notifications/admin-notification-events'
 
 const { Title, Text } = Typography
@@ -61,37 +65,9 @@ const formatNumber = (value: number | undefined) => {
   return new Intl.NumberFormat('vi-VN').format(value)
 }
 
-/** Map order status → color */
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'orange',
-  PAYMENT_STARTED: 'gold',
-  PAYMENT_FAILED: 'volcano',
-  PAYMENT_CANCELLED: 'red',
-  PAID_UNCONFIRMED: 'cyan',
-  PAID_CONFIRMED: 'blue',
-  PROCESSING: 'blue',
-  DELIVERY_ON_ROUTE: 'geekblue',
-  DELIVERY_COMPLETE: 'green',
-  DELIVERY_CANCELLED: 'red',
-  RETURNED: 'purple',
-  DELIVERY_FAILED: 'volcano',
-  REJECTED: 'magenta',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Chờ thanh toán',
-  PAYMENT_STARTED: 'Đang thanh toán',
-  PAYMENT_FAILED: 'Thanh toán thất bại',
-  PAYMENT_CANCELLED: 'Hủy thanh toán',
-  PAID_UNCONFIRMED: 'Đã thanh toán, chờ duyệt',
-  PAID_CONFIRMED: 'Đã duyệt đơn',
-  PROCESSING: 'Đang chuẩn bị hàng',
-  DELIVERY_ON_ROUTE: 'Đang giao hàng',
-  DELIVERY_COMPLETE: 'Giao thành công',
-  DELIVERY_FAILED: 'Giao hàng thất bại',
-  DELIVERY_CANCELLED: 'Thu hồi vận chuyển',
-  RETURNED: 'Hoàn hàng',
-  REJECTED: 'Từ chối đơn',
+const STATUS_CONFIG = {
+  ...FULFILLMENT_STATUS_CONFIG,
+  ...PAYMENT_STATUS_CONFIG,
 }
 
 const DashboardView: React.FC = () => {
@@ -305,12 +281,13 @@ const DashboardView: React.FC = () => {
                   <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     {stats.orderStatusBreakdown.map((item: OrderStatusCountPojo) => {
                       const statusKey = normalizeOrderStatus(item.status)
+                      const statusConfig = STATUS_CONFIG[statusKey]
                       const pct = totalOrders > 0 ? Math.round((item.count / totalOrders) * 100) : 0
                       return (
                         <div key={item.status}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <Tag color={STATUS_COLORS[statusKey] ?? 'default'}>
-                              {STATUS_LABELS[statusKey] ?? item.status}
+                            <Tag color={statusConfig?.color ?? 'default'}>
+                              {statusConfig?.label ?? item.status}
                             </Tag>
                             <Text strong>{formatNumber(item.count)} đơn</Text>
                           </div>

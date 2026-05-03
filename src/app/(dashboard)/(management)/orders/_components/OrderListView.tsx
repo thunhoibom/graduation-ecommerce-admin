@@ -59,8 +59,8 @@ const OrderListView: React.FC = () => {
   const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<OrderSearchParams>>({
-    page: 1,
-    size: 20,
+    pageIndex: 0,
+    pageSize: 20,
   })
   const [rejectReason, setRejectReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
@@ -88,12 +88,12 @@ const OrderListView: React.FC = () => {
   }, [mutate])
 
   const handleTableChange = useCallback((page: number, size: number) => {
-    setQueryParams((prev) => ({ ...prev, page, size }))
+    setQueryParams((prev) => ({ ...prev, pageIndex: Math.max(0, page - 1), pageSize: size }))
     mutate()
   }, [mutate])
 
   const handleFilter = useCallback((key: string, value: string | undefined) => {
-    setQueryParams((prev) => ({ ...prev, [key]: value, page: 1 }))
+    setQueryParams((prev) => ({ ...prev, [key]: value, pageIndex: 0 }))
     mutate()
   }, [mutate])
 
@@ -105,7 +105,7 @@ const OrderListView: React.FC = () => {
         ...prev,
         dateFrom,
         dateTo,
-        page: 1,
+        pageIndex: 0,
       }))
       mutate()
     },
@@ -412,8 +412,8 @@ const OrderListView: React.FC = () => {
         loading={isLoading}
         scroll={{ x: 1100 }}
         pagination={{
-          current: queryParams.page ?? 1,
-          pageSize: queryParams.size ?? 20,
+          current: (queryParams.pageIndex ?? 0) + 1,
+          pageSize: queryParams.pageSize ?? 20,
           total: data?.totalCount ?? 0,
           showSizeChanger: true,
           showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} đơn hàng`,

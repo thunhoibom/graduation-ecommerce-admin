@@ -38,8 +38,8 @@ export default function FinanceSettlementsPage() {
   )
 
   const { data: logs, isLoading: logsLoading, mutate: mutateLogs } = useAxiosSWR(
-    [SWR_KEYS.FINANCE_CALLBACK_LOG_LIST, page],
-    () => getFinanceCallbackLogs({ page, size: 20 }),
+    [SWR_KEYS.FINANCE_CALLBACK_LOG_LIST, page, params.from, params.to],
+    () => getFinanceCallbackLogs({ page, size: 20, from: params.from, to: params.to }),
     { revalidateOnMount: true },
   )
 

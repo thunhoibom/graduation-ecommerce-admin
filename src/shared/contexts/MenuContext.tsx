@@ -12,7 +12,6 @@ import {
   GiftOutlined,
   GlobalOutlined,
   PictureOutlined,
-  SettingOutlined,
 } from '@ant-design/icons'
 import Link from 'next/link'
 import { paths } from '@/routes/paths'
@@ -95,11 +94,6 @@ const menuItems: MenuProps['items'] = [
     key: 'media',
     icon: <PictureOutlined />,
     label: <Link href={paths.media.list}>Thư viện media</Link>,
-  },
-  {
-    key: 'settings',
-    icon: <SettingOutlined />,
-    label: <Link href={paths.settings.root}>Cài đặt</Link>,
   },
 ]
 

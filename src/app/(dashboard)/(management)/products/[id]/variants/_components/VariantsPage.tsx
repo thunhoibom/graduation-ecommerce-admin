@@ -49,7 +49,6 @@ interface VariantFormData {
   color?: string
   attributes?: string
   priceModifier?: number
-  currentStock?: number
   criticalStock?: number
   active?: boolean
   barcode?: string
@@ -110,7 +109,7 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
     setEditingVariant(null)
     setFileList([])
     form.resetFields()
-    form.setFieldsValue({ active: true, priceModifier: 0, currentStock: 0, criticalStock: 0 })
+    form.setFieldsValue({ active: true, priceModifier: 0, criticalStock: 0 })
     setFormOpen(true)
   }, [form])
 
@@ -133,7 +132,6 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
       color: record.color,
       attributes: record.attributes,
       priceModifier: record.priceModifier ?? 0,
-      currentStock: record.currentStock ?? 0,
       criticalStock: record.criticalStock ?? 0,
       active: record.active !== false,
       barcode: record.barcode,
@@ -181,7 +179,6 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
         color: values.color,
         attributes: values.attributes,
         priceModifier: values.priceModifier,
-        currentStock: values.currentStock,
         criticalStock: values.criticalStock,
         active: values.active,
         barcode: values.barcode,
@@ -295,25 +292,25 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
       width: 100,
       align: 'center' as const,
       render: (_: unknown, record: ProductVariantPojo) => {
-        const stock = record.currentStock ?? 0
+        const stock = record.onHand ?? record.currentStock ?? 0
         return <Tag color={stock === 0 ? 'red' : stock < (record.criticalStock ?? 5) ? 'orange' : 'green'}>{stock}</Tag>
       },
     },
     {
       title: 'Còn trống',
-      dataIndex: 'availableStock',
+      dataIndex: 'availableToSell',
       key: 'availableStock',
       width: 100,
       align: 'center' as const,
-      render: (v: number) => v ?? 0,
+      render: (_: number, record: ProductVariantPojo) => record.availableToSell ?? record.availableStock ?? 0,
     },
     {
       title: 'Đã đặt',
-      dataIndex: 'reservedStock',
+      dataIndex: 'reserved',
       key: 'reservedStock',
       width: 90,
       align: 'center' as const,
-      render: (v: number) => v ?? 0,
+      render: (_: number, record: ProductVariantPojo) => record.reserved ?? record.reservedStock ?? 0,
     },
     {
       title: 'Hoạt động',
@@ -536,12 +533,7 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
           </Row>
 
           <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="currentStock" label="Tồn kho">
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name="criticalStock" label="Ngưỡng cảnh báo">
                 <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
               </Form.Item>

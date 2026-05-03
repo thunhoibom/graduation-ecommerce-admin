@@ -183,7 +183,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
       width: 120,
       align: 'center' as const,
       render: (_: unknown, record: ProductVariantPojo) => {
-        const stock = record.currentStock ?? 0
+        const stock = record.onHand ?? record.currentStock ?? 0
         const color = stock === 0 ? '#ff4d4f' : stock < (record.criticalStock ?? 5) ? '#fa8c16' : '#52c41a'
         return <Tag color={stock === 0 ? 'red' : stock < (record.criticalStock ?? 5) ? 'orange' : 'green'}>{stock}</Tag>
       },
@@ -194,7 +194,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
       width: 110,
       align: 'center' as const,
       render: (_: unknown, record: ProductVariantPojo) => (
-        <Text type="secondary">{record.availableStock ?? record.currentStock ?? 0}</Text>
+        <Text type="secondary">{record.availableToSell ?? record.availableStock ?? record.onHand ?? record.currentStock ?? 0}</Text>
       ),
     },
     {
@@ -203,7 +203,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ productId }) => {
       width: 90,
       align: 'center' as const,
       render: (_: unknown, record: ProductVariantPojo) => (
-        <Tag color="blue">{record.reservedStock ?? 0}</Tag>
+        <Tag color="blue">{record.reserved ?? record.reservedStock ?? 0}</Tag>
       ),
     },
     {

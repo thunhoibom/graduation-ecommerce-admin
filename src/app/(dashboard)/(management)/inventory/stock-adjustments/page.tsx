@@ -24,7 +24,7 @@ import { SWR_KEYS } from '@/constants/swrKeys'
 import { searchVariants, type ProductVariantPojo } from '@/services/rest-api/app-api/products/product-service'
 import {
   getRestockSuggestions,
-  getStockTimelineBySku,
+  listStockAdjustments,
   recordStockAdjustment,
   type AdjustmentType,
   type RestockSuggestionPojo,
@@ -55,6 +55,9 @@ export default function StockAdjustmentsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [lookbackDays, setLookbackDays] = useState(30)
   const [leadTimeDays, setLeadTimeDays] = useState(14)
+  const [ledgerKeyword, setLedgerKeyword] = useState('')
+  const [ledgerLowStockOnly, setLedgerLowStockOnly] = useState(false)
+  const [ledgerReason, setLedgerReason] = useState<string>()
 
   const adjustmentType = Form.useWatch('type', form)
 
@@ -69,7 +72,7 @@ export default function StockAdjustmentsPage() {
   const variantOptions = useMemo(
     () =>
       variants.map((variant) => ({
-        label: `${variant.sku} · ${variant.productName ?? 'N/A'} · Tồn: ${variant.currentStock ?? 0}`,
+        label: `${variant.sku} · ${variant.productName ?? 'N/A'} · Tồn: ${variant.onHand ?? variant.currentStock ?? 0}`,
         value: variant.id!,
         sku: variant.sku,
       })),
@@ -77,12 +80,12 @@ export default function StockAdjustmentsPage() {
   )
 
   const {
-    data: timeline,
-    isLoading: timelineLoading,
-    mutate: mutateTimeline,
-  } = useAxiosSWR<StockAdjustmentPojo[]>(
-    selectedSku ? [SWR_KEYS.STOCK_TIMELINE, selectedSku] : null,
-    selectedSku ? async () => getStockTimelineBySku(selectedSku, { page: 0, size: 100 }) : null,
+    data: ledgerResponse,
+    isLoading: ledgerLoading,
+    mutate: mutateLedger,
+  } = useAxiosSWR<{ items: StockAdjustmentPojo[]; totalCount?: number }>(
+    [SWR_KEYS.STOCK_TIMELINE, 'all-ledger'],
+    async () => listStockAdjustments({ page: 0, size: 500 }),
     { revalidateOnMount: true },
   )
 
@@ -115,7 +118,7 @@ export default function StockAdjustmentsPage() {
       })
       messageApi.success('Ghi nhận điều chỉnh tồn kho thành công.')
       setSelectedSku(selectedVariant.sku)
-      mutateTimeline()
+      mutateLedger()
       mutateRestock()
       form.resetFields()
       form.setFieldsValue({ type: 'INBOUND' })
@@ -183,6 +186,63 @@ export default function StockAdjustmentsPage() {
     },
   ]
 
+  const kpi = useMemo(() => {
+    const totals = variants.reduce(
+      (acc, variant) => {
+        const onHand = variant.onHand ?? variant.currentStock ?? 0
+        const reserved = variant.reserved ?? variant.reservedStock ?? 0
+        const available = variant.availableToSell ?? variant.availableStock ?? Math.max(0, onHand - reserved)
+        const critical = variant.criticalStock ?? 0
+        acc.onHand += onHand
+        acc.reserved += reserved
+        acc.available += available
+        if (available <= critical) {
+          acc.lowStockSkus += 1
+        }
+        return acc
+      },
+      { onHand: 0, reserved: 0, available: 0, lowStockSkus: 0 }
+    )
+    return totals
+  }, [variants])
+
+  const lowStockSkuSet = useMemo(() => {
+    const set = new Set<string>()
+    variants.forEach((variant) => {
+      const sku = variant.sku
+      const onHand = variant.onHand ?? variant.currentStock ?? 0
+      const reserved = variant.reserved ?? variant.reservedStock ?? 0
+      const available = variant.availableToSell ?? variant.availableStock ?? Math.max(0, onHand - reserved)
+      const critical = variant.criticalStock ?? 0
+      if (sku && available <= critical) {
+        set.add(sku)
+      }
+    })
+    return set
+  }, [variants])
+
+  const reasonOptions = useMemo(() => {
+    const reasons = new Set((ledgerResponse?.items ?? []).map((item) => item.reason).filter(Boolean))
+    return Array.from(reasons).map((reason) => ({ label: reason, value: reason }))
+  }, [ledgerResponse?.items])
+
+  const ledgerRows = useMemo(() => {
+    const keyword = ledgerKeyword.trim().toLowerCase()
+    return (ledgerResponse?.items ?? []).filter((item) => {
+      const matchesSku = selectedSku ? item.variantSku === selectedSku : true
+      const matchesReason = ledgerReason ? item.reason === ledgerReason : true
+      const matchesKeyword = keyword
+        ? [item.variantSku, item.productName, item.description]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(keyword))
+        : true
+      const matchesLowStock = ledgerLowStockOnly
+        ? !!item.variantSku && lowStockSkuSet.has(item.variantSku)
+        : true
+      return matchesSku && matchesReason && matchesKeyword && matchesLowStock
+    })
+  }, [ledgerKeyword, ledgerLowStockOnly, ledgerReason, ledgerResponse?.items, lowStockSkuSet, selectedSku])
+
   const suggestionColumns: ColumnsType<RestockSuggestionPojo> = [
     {
       title: 'SKU',
@@ -245,6 +305,33 @@ export default function StockAdjustmentsPage() {
           Nhập/xuất/điều chỉnh có lý do bắt buộc, timeline theo SKU, và đề xuất restock theo lịch sử bán.
         </Text>
       </div>
+
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card size="small">
+            <Text type="secondary">On-hand</Text>
+            <Title level={4} style={{ margin: 0 }}>{kpi.onHand}</Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Text type="secondary">Reserved</Text>
+            <Title level={4} style={{ margin: 0, color: '#fa8c16' }}>{kpi.reserved}</Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Text type="secondary">Available to sell</Text>
+            <Title level={4} style={{ margin: 0, color: '#389e0d' }}>{kpi.available}</Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Text type="secondary">SKU low-stock</Text>
+            <Title level={4} style={{ margin: 0, color: '#cf1322' }}>{kpi.lowStockSkus}</Title>
+          </Card>
+        </Col>
+      </Row>
 
       <Row gutter={16}>
         <Col span={10}>
@@ -310,26 +397,57 @@ export default function StockAdjustmentsPage() {
 
         <Col span={14}>
           <Card
-            title="Timeline tồn kho theo SKU"
+            title="Inventory Ledger (lịch sử biến động)"
             extra={
-              <Select
-                style={{ width: 320 }}
-                showSearch
-                optionFilterProp="label"
-                options={variantOptions}
-                value={variantOptions.find((item) => item.sku === selectedSku)?.value}
-                placeholder="Chọn SKU để xem timeline"
-                onChange={(variantId: number) => {
-                  const selected = variantOptions.find((item) => item.value === variantId)
-                  setSelectedSku(selected?.sku)
-                }}
-              />
+              <Space>
+                <Select
+                  style={{ width: 240 }}
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  options={variantOptions}
+                  value={variantOptions.find((item) => item.sku === selectedSku)?.value}
+                  placeholder="Lọc theo SKU"
+                  onChange={(variantId: number) => {
+                    if (!variantId) {
+                      setSelectedSku(undefined)
+                      return
+                    }
+                    const selected = variantOptions.find((item) => item.value === variantId)
+                    setSelectedSku(selected?.sku)
+                  }}
+                />
+                <Input
+                  allowClear
+                  style={{ width: 220 }}
+                  placeholder="Tìm SKU/tên/ghi chú"
+                  value={ledgerKeyword}
+                  onChange={(e) => setLedgerKeyword(e.target.value)}
+                />
+                <Select
+                  allowClear
+                  style={{ width: 180 }}
+                  placeholder="Lọc theo reason"
+                  options={reasonOptions}
+                  value={ledgerReason}
+                  onChange={(value) => setLedgerReason(value)}
+                />
+                <Select
+                  style={{ width: 160 }}
+                  value={ledgerLowStockOnly ? 'LOW_ONLY' : 'ALL'}
+                  options={[
+                    { label: 'Tất cả trạng thái', value: 'ALL' },
+                    { label: 'Chỉ low-stock', value: 'LOW_ONLY' },
+                  ]}
+                  onChange={(value) => setLedgerLowStockOnly(value === 'LOW_ONLY')}
+                />
+              </Space>
             }
           >
             <Table
               rowKey="id"
-              loading={timelineLoading}
-              dataSource={timeline ?? []}
+              loading={ledgerLoading}
+              dataSource={ledgerRows}
               columns={timelineColumns}
               pagination={{ pageSize: 8 }}
               size="small"

@@ -130,22 +130,22 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({
               Tồn thực tế: <Text strong>{product.currentStock ?? 0}</Text>
             </div>
             <div>
-              Đang giữ hàng: <Text type={product.reservedStock && product.reservedStock > 0 ? 'warning' : 'secondary'}>
-                {product.reservedStock ?? 0}
+              Đang giữ hàng: <Text type={(product.reserved ?? product.reservedStock) && (product.reserved ?? product.reservedStock)! > 0 ? 'warning' : 'secondary'}>
+                {product.reserved ?? product.reservedStock ?? 0}
               </Text>
             </div>
             <div>
               Khả dụng: <Tag
                 color={
-                  !product.availableStock
+                  !(product.availableToSell ?? product.availableStock)
                     ? 'red'
-                    : (product.availableStock ?? 0) <= (product.criticalStock ?? 5)
+                    : (product.availableToSell ?? product.availableStock ?? 0) <= (product.criticalStock ?? 5)
                       ? 'orange'
                       : 'green'
                 }
                 style={{ fontWeight: 'bold' }}
               >
-                {product.availableStock ?? 0}
+                {product.availableToSell ?? product.availableStock ?? 0}
               </Tag>
             </div>
             {product.criticalStock != null && (

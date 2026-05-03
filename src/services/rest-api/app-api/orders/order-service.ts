@@ -144,8 +144,8 @@ export type OrderSearchParams = {
   trackingNumber?: string
   dateFrom?: string
   dateTo?: string
-  page?: number
-  size?: number
+  pageIndex?: number
+  pageSize?: number
   sortField?: string
   sortDirection?: 'ASC' | 'DESC'
 }
