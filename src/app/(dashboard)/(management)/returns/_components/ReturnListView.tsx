@@ -63,33 +63,33 @@ const ReturnListView: React.FC = () => {
   const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<ReturnSearchParams>>({
-    page: 1,
-    size: 20,
+    pageIndex: 0,
+    pageSize: 20,
   })
   const [rejectReason, setRejectReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
 
   const { data, isLoading, mutate } = useAxiosSWR<{
-    data: ReturnRequestPojo[]
-    totalElements: number
+    items: ReturnRequestPojo[]
+    totalCount: number
   }>(
     [SWR_KEYS.RETURN_LIST, queryParams],
     async () => {
       const res = await searchReturns(queryParams as ReturnSearchParams)
       return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
+        items: res.items ?? [],
+        totalCount: res.totalCount ?? 0,
       }
     },
     { revalidateOnMount: true },
   )
 
   const handleTableChange = useCallback((page: number, size: number) => {
-    setQueryParams((prev) => ({ ...prev, page, size }))
+    setQueryParams((prev) => ({ ...prev, pageIndex: page - 1, pageSize: size }))
   }, [])
 
   const handleFilter = useCallback((key: string, value: string | undefined) => {
-    setQueryParams((prev) => ({ ...prev, [key]: value, page: 1 }))
+    setQueryParams((prev) => ({ ...prev, [key]: value, pageIndex: 0 }))
   }, [])
 
   const handleAction = async (
@@ -147,7 +147,7 @@ const ReturnListView: React.FC = () => {
       width: 110,
       align: 'center',
       render: (_: unknown, record: ReturnRequestPojo) => (
-        <Tag>{record.items?.length ?? 0}</Tag>
+        <Tag>{record.items?.reduce((sum, item) => sum + (item.quantity ?? 0), 0) ?? 0}</Tag>
       ),
     },
     {
@@ -166,9 +166,16 @@ const ReturnListView: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 150,
-      render: (status: string) => {
+      render: (status: string, record: ReturnRequestPojo) => {
         const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
-        return <Tag color={cfg.color}>{cfg.label}</Tag>
+        return (
+          <Space size={4} wrap>
+            <Tag color={cfg.color}>{cfg.label}</Tag>
+            {status === 'RECEIVED' && record.qcStatus === 'PENDING' && (
+              <Tag color="gold">Chờ QC</Tag>
+            )}
+          </Space>
+        )
       },
     },
     {
@@ -235,8 +242,8 @@ const ReturnListView: React.FC = () => {
                 type="text"
                 icon={<CheckCircleOutlined />}
                 style={{ color: '#52c41a' }}
-                onClick={() => handleAction('complete', record.id!)}
-                title="Hoàn tiền"
+                onClick={() => router.push(`/returns/${record.id}`)}
+                title={record.qcStatus === 'PASSED' ? 'Xử lý hoàn tiền' : 'Kiểm tra hàng (QC)'}
               />
             )}
           </Space>
@@ -266,7 +273,7 @@ const ReturnListView: React.FC = () => {
               onSearch={(v) => setQueryParams((prev) => ({
                 ...prev,
                 orderId: v ? Number(v) : undefined,
-                page: 1,
+                pageIndex: 0,
               }))}
             />
           </Col>
@@ -286,13 +293,13 @@ const ReturnListView: React.FC = () => {
       <AppTable
         rowKey="id"
         columns={columns}
-        dataSource={data?.data ?? []}
+        dataSource={data?.items ?? []}
         loading={isLoading}
         scroll={{ x: 1000 }}
         pagination={{
-          current: queryParams.page ?? 1,
-          pageSize: queryParams.size ?? 20,
-          total: data?.totalElements ?? 0,
+          current: (queryParams.pageIndex ?? 0) + 1,
+          pageSize: queryParams.pageSize ?? 20,
+          total: data?.totalCount ?? 0,
           showSizeChanger: true,
           showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} yêu cầu`,
           onChange: handleTableChange,

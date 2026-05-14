@@ -88,10 +88,10 @@ const OrderNewView: React.FC = () => {
 
   // Shipping methods
   const { data: shippingMethods } = useAxiosSWR(
-    [SWR_KEYS.SHIPPING_LIST, { page: 1, size: 100 }],
+    [SWR_KEYS.SHIPPING_LIST, { pageIndex: 0, pageSize: 100 }],
     async () => {
-      const res = await searchShippingMethods({ page: 1, size: 100 })
-      return res.data ?? []
+      const res = await searchShippingMethods({ pageIndex: 0, pageSize: 100 })
+      return res.items ?? []
     },
   )
 

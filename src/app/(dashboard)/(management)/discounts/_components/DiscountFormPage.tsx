@@ -36,7 +36,18 @@ interface DiscountFormPageProps {
 
 const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
   const router = useRouter()
-  const isEditMode = Boolean(discountId)
+  const parsedDiscountId = (() => {
+    if (
+      discountId == null ||
+      discountId === '' ||
+      discountId === 'undefined' ||
+      discountId === 'null'
+    ) {
+      return NaN
+    }
+    return Number(discountId)
+  })()
+  const isEditMode = Number.isFinite(parsedDiscountId) && parsedDiscountId > 0
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
   const [submitting, setSubmitting] = useState(false)
@@ -44,8 +55,8 @@ const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
 
   // Load discount if editing
   const { data: discountData, isLoading } = useAxiosSWR<DiscountCodePojo>(
-    isEditMode ? [SWR_KEYS.DISCOUNT_DETAIL, discountId] : null,
-    isEditMode ? async () => getDiscountById(Number(discountId)) : null,
+    isEditMode ? [SWR_KEYS.DISCOUNT_DETAIL, parsedDiscountId] : null,
+    isEditMode ? async () => getDiscountById(parsedDiscountId) : null,
     { revalidateOnMount: true },
   )
 
@@ -98,7 +109,7 @@ const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
       }
 
       if (isEditMode) {
-        await updateDiscount(Number(discountId), payload)
+        await updateDiscount(parsedDiscountId, payload)
         messageApi.success('Cập nhật mã giảm giá thành công')
       } else {
         await createDiscount(payload)
@@ -284,7 +295,7 @@ const DiscountFormPage: React.FC<DiscountFormPageProps> = ({ discountId }) => {
             <Card
               title="Xem trước"
               style={{ marginBottom: 16, background: '#fafafa' }}
-              bodyStyle={{ padding: 16 }}
+              styles={{ body: { padding: 16 } }}
             >
               <Form.Item noStyle shouldUpdate>
                 {() => {

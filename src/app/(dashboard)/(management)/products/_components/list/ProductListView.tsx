@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import { Modal, message, Typography, Space, Button } from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAxios } from '@/shared/hooks/use-axios'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
@@ -27,6 +27,7 @@ const { Title, Text } = Typography
 
 const ProductListView: React.FC = () => {
   const router = useRouter()
+  const pathname = usePathname()
   const [messageApi, contextHolder] = message.useMessage()
 
   const {
@@ -167,6 +168,12 @@ const ProductListView: React.FC = () => {
     mutate()
   }, [mutate])
 
+  const handleClearFilters = useCallback(() => {
+    const size = queryParams.pageSize ?? '20'
+    router.replace(`${pathname}?pageIndex=0&pageSize=${encodeURIComponent(size)}`)
+    mutate()
+  }, [router, pathname, queryParams.pageSize, mutate])
+
   return (
     <>
       {contextHolder}
@@ -187,6 +194,7 @@ const ProductListView: React.FC = () => {
         categories={categories}
         onAddNew={handleAddNew}
         onBulkOpen={() => setBulkModalOpen(true)}
+        onClearFilters={handleClearFilters}
       />
 
       {/* Bulk actions bar (shows when rows are selected) */}

@@ -258,6 +258,7 @@ const OrderListView: React.FC = () => {
         const availableActions = getAvailableOrderActions(
           record.fulfillmentStatus ?? record.status,
           record.paymentStatus,
+          record.paymentType ?? record.paymentMethod,
         )
         const orderId = (record.id ?? record.buyOrder)!
         const menuItems: MenuProps['items'] = [

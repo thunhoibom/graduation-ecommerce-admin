@@ -21,11 +21,14 @@ export const useFetchProducts = (enabled: boolean = true) => {
     enabled ? [SWR_KEYS.PRODUCT_LIST, queryParams] : null,
     async () => {
       const searchParams: ProductSearchParams = { ...queryParams } as any
-      if (typeof queryParams.minPrice === 'string') {
+      if (typeof queryParams.minPrice === 'string' && queryParams.minPrice !== '') {
         searchParams.minPrice = Number(queryParams.minPrice)
       }
-      if (typeof queryParams.maxPrice === 'string') {
+      if (typeof queryParams.maxPrice === 'string' && queryParams.maxPrice !== '') {
         searchParams.maxPrice = Number(queryParams.maxPrice)
+      }
+      if (queryParams.inStock === 'true') {
+        searchParams.inStock = true
       }
       if (typeof queryParams.pageIndex === 'string') {
         searchParams.pageIndex = Number(queryParams.pageIndex)

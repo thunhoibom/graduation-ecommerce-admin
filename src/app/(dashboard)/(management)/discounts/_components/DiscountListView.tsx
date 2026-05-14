@@ -50,6 +50,10 @@ const formatValue = (type: string, value: number) => {
   return formatVND(value)
 }
 
+function isValidDiscountCodeId(id: number | undefined): id is number {
+  return id != null && Number.isFinite(Number(id)) && Number(id) > 0
+}
+
 // ── DiscountListView ──────────────────────────────────────────────
 
 const DiscountListView: React.FC = () => {
@@ -89,6 +93,10 @@ const DiscountListView: React.FC = () => {
   }
 
   const handleEdit = (record: DiscountCodePojo) => {
+    if (!isValidDiscountCodeId(record.id)) {
+      messageApi.error('Không thể sửa: thiếu mã định danh. Vui lòng tải lại trang.')
+      return
+    }
     setEditingDiscount(record)
     form.setFieldsValue({
       code: record.code,
@@ -106,6 +114,10 @@ const DiscountListView: React.FC = () => {
   }
 
   const handleDelete = useCallback(async (id: number) => {
+    if (!isValidDiscountCodeId(id)) {
+      messageApi.error('Không thể xóa: thiếu mã định danh.')
+      return
+    }
     try {
       await deleteDiscount(id)
       messageApi.success('Xóa mã giảm giá thành công')
@@ -116,6 +128,10 @@ const DiscountListView: React.FC = () => {
   }, [mutate, messageApi])
 
   const handleToggleActive = useCallback(async (id: number, active: boolean) => {
+    if (!isValidDiscountCodeId(id)) {
+      messageApi.error('Không thể đổi trạng thái: thiếu mã định danh.')
+      return
+    }
     try {
       await toggleDiscountActive(id, !active)
       messageApi.success('Cập nhật trạng thái thành công')
@@ -142,7 +158,11 @@ const DiscountListView: React.FC = () => {
       }
 
       if (editingDiscount) {
-        await updateDiscount(editingDiscount.id!, payload)
+        if (!isValidDiscountCodeId(editingDiscount.id)) {
+          messageApi.error('Không thể cập nhật: thiếu mã định danh. Vui lòng tải lại trang.')
+          return
+        }
+        await updateDiscount(editingDiscount.id, payload)
         messageApi.success('Cập nhật mã giảm giá thành công')
       } else {
         await createDiscount(payload)

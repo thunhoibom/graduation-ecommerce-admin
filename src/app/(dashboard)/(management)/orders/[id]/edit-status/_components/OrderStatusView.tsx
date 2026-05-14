@@ -84,7 +84,11 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
   const s = normalizeFulfillmentStatus(fulfillmentStatus)
   const currentIdx = FULFILLMENT_STATUS_PIPELINE.findIndex((statusKey) => statusKey === s)
   const isTerminal = TERMINAL_FULFILLMENT_STATUSES.includes(s)
-  const availableActions = getAvailableOrderActions(fulfillmentStatus, order?.paymentStatus)
+  const availableActions = getAvailableOrderActions(
+    fulfillmentStatus,
+    order?.paymentStatus,
+    order?.paymentType ?? order?.paymentMethod,
+  )
 
   // ── Action handlers ──────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 'use client'
 
-import React, { Suspense, useState, useCallback, useMemo } from 'react'
+import React, { Suspense, useState, useCallback, useMemo, useEffect } from 'react'
 import { Typography, Breadcrumb, Card, Table, Tag, Space, Button, Modal, Form, Input, InputNumber, message, Row, Col, Upload, Image as AntdImage, Select, Alert } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 
@@ -150,6 +150,22 @@ const VariantManagementView: React.FC = () => {
     ...DEFAULT_VARIANT_PARAMS,
     productBarcode: barcode || '',
   })
+  const [searchDraft, setSearchDraft] = useState(queryParams.query ?? '')
+
+  useEffect(() => {
+    setSearchDraft(queryParams.query ?? '')
+  }, [queryParams.query])
+
+  const handleVariantSearch = useCallback(
+    (value: string) => {
+      const keyword = value.trim()
+      setTableFetchingParams({
+        query: keyword || undefined,
+        pageIndex: '0',
+      })
+    },
+    [setTableFetchingParams],
+  )
 
 
   // Load variants
@@ -161,12 +177,16 @@ const VariantManagementView: React.FC = () => {
     barcode
       ? async () => {
           // Create string-compatible params for the API
-          const apiParams = {
+          const apiParams: VariantSearchParams = {
             productBarcode: barcode,
             pageIndex: Number(queryParams.pageIndex),
-            pageSize: queryParams.pageSize,
+            pageSize: Number(queryParams.pageSize),
           }
-          const res = await searchVariants(apiParams as any)
+          const keyword = queryParams.query?.trim()
+          if (keyword) {
+            apiParams.query = keyword
+          }
+          const res = await searchVariants(apiParams)
           return {
             data: res.items ?? [],
             totalElements: res.totalCount ?? 0,
@@ -682,6 +702,24 @@ const VariantManagementView: React.FC = () => {
           </Space>
         }
       >
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          <Col xs={24} md={12} lg={10}>
+            <Input.Search
+              placeholder="Tìm SKU, size, màu, barcode..."
+              allowClear
+              enterButton={<SearchOutlined />}
+              value={searchDraft}
+              onChange={(event) => {
+                const value = event.target.value
+                setSearchDraft(value)
+                if (!value) {
+                  handleVariantSearch('')
+                }
+              }}
+              onSearch={handleVariantSearch}
+            />
+          </Col>
+        </Row>
         <AppTable
           rowKey="id"
           columns={columns}

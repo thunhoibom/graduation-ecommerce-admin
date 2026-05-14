@@ -205,7 +205,11 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
 
   // ── Action buttons by status ──────────────────────────────────
   const actionButtons = () => {
-    const availableActions = getAvailableOrderActions(fulfillmentStatus, paymentStatus)
+    const availableActions = getAvailableOrderActions(
+      fulfillmentStatus,
+      paymentStatus,
+      order?.paymentType ?? order?.paymentMethod,
+    )
     if (availableActions.includes('confirm')) {
       return (
         <Space>

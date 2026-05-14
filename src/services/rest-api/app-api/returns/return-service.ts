@@ -13,6 +13,8 @@ export type RefundMethod = 'ORIGINAL_PAYMENT' | 'STORE_CREDIT' | 'BANK_TRANSFER'
 // Backend: ReturnRequest.ReturnRequestStatus
 export type ReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUND_PROCESSING' | 'REFUND_COMPLETED' | 'CANCELLED'
 
+export type ReturnQcStatus = 'PENDING' | 'PASSED' | 'FAILED'
+
 export type ReturnRequestItemPojo = {
   id?: number
   quantity?: number
@@ -38,6 +40,16 @@ export type ReturnRequestPojo = {
   refundMethod?: RefundMethod
   refundAmount?: number
   trackingNumber?: string
+  refundBankName?: string
+  refundBankAccountNumber?: string
+  refundBankAccountHolder?: string
+  refundProofUrl?: string
+  refundReference?: string
+  refundedAt?: string
+  qcStatus?: ReturnQcStatus
+  qcNotes?: string
+  qcPhotoUrls?: string
+  qcCompletedAt?: string
   orderId?: number
   items?: ReturnRequestItemPojo[]
   // Enriched fields from joined entities
@@ -54,17 +66,14 @@ export type ReturnRequestPojo = {
 export type ReturnSearchParams = {
   status?: ReturnStatus
   orderId?: number
-  page?: number
-  size?: number
+  pageIndex?: number
+  pageSize?: number
 }
 
-export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+export type DataPageResponse<T> = {
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 
@@ -73,7 +82,7 @@ export type PageResponse<T> = {
 // ─────────────────────────────────────────────────────────────────
 
 export const searchReturns = (params: ReturnSearchParams) => {
-  return returnService.get<PageResponse<ReturnRequestPojo[]>>('', { params })
+  return returnService.get<DataPageResponse<ReturnRequestPojo[]>>('', { params })
 }
 
 export const getReturnById = (id: number) => {
@@ -92,12 +101,31 @@ export const receiveReturn = (id: number) => {
   return returnService.post<ReturnRequestPojo>(`/receive/${id}`, {})
 }
 
+export const submitReturnQc = (
+  id: number,
+  payload: {
+    result: 'PASSED' | 'FAILED'
+    qcNotes?: string
+    photoUrls?: string[]
+  },
+) => {
+  return returnService.post<ReturnRequestPojo>(`/qc/${id}`, payload)
+}
+
 export const startRefundProcessing = (id: number) => {
   return returnService.post<ReturnRequestPojo>(`/start-refund/${id}`, {})
 }
 
-export const completeRefund = (id: number) => {
-  return returnService.post<ReturnRequestPojo>(`/complete-refund/${id}`, {})
+export const completeRefund = (
+  id: number,
+  payload?: {
+    adminNotes?: string
+    refundProofUrl?: string
+    refundReference?: string
+    refundedAt?: string
+  }
+) => {
+  return returnService.post<ReturnRequestPojo>(`/complete-refund/${id}`, payload ?? {})
 }
 
 export const cancelReturn = (id: number, reason?: string) => {

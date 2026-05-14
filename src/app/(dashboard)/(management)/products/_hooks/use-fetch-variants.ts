@@ -8,6 +8,7 @@ export type DefaultVariantParams = {
   pageIndex: string
   pageSize: string
   productBarcode: string
+  query?: string
 }
 
 export const DEFAULT_VARIANT_PARAMS: Partial<DefaultVariantParams> = {

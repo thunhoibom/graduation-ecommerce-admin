@@ -39,8 +39,8 @@ const formatVND = (value: number | undefined) => {
 const ShippingListView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
   const [queryParams, setQueryParams] = useState<Partial<ShippingSearchParams>>({
-    page: 1,
-    size: 20,
+    pageIndex: 0,
+    pageSize: 20,
   })
   const [formOpen, setFormOpen] = useState(false)
   const [editingMethod, setEditingMethod] = useState<ShippingMethodPojo | null>(null)
@@ -48,26 +48,35 @@ const ShippingListView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false)
 
   const { data, isLoading, mutate } = useAxiosSWR<{
-    data: ShippingMethodPojo[]
-    totalElements: number
+    rows: ShippingMethodPojo[]
+    totalCount: number
   }>(
     [SWR_KEYS.SHIPPING_LIST, queryParams],
     async () => {
       const res = await searchShippingMethods(queryParams as ShippingSearchParams)
       return {
-        data: res.data ?? [],
-        totalElements: res.totalElements ?? 0,
+        rows: res.items ?? [],
+        totalCount: res.totalCount ?? 0,
       }
     },
     { revalidateOnMount: true },
   )
 
   const handleTableChange = useCallback((page: number, size: number) => {
-    setQueryParams((prev) => ({ ...prev, page, size }))
+    setQueryParams((prev) => ({
+      ...prev,
+      pageIndex: Math.max(0, page - 1),
+      pageSize: size,
+    }))
   }, [])
 
   const handleSearch = useCallback((value: string) => {
-    setQueryParams((prev) => ({ ...prev, name: value || undefined, page: 1 }))
+    setQueryParams((prev) => ({
+      ...prev,
+      nameLike: value.trim() || undefined,
+      name: undefined,
+      pageIndex: 0,
+    }))
   }, [])
 
   const handleAddNew = () => {
@@ -95,6 +104,10 @@ const ShippingListView: React.FC = () => {
   }
 
   const handleDelete = useCallback(async (id: number) => {
+    if (id == null || !Number.isFinite(Number(id))) {
+      messageApi.error('Không xác định được phương thức cần xóa — tải lại trang.')
+      return
+    }
     try {
       await deleteShippingMethod(id)
       messageApi.success('Xóa phương thức thành công')
@@ -104,27 +117,51 @@ const ShippingListView: React.FC = () => {
     }
   }, [mutate, messageApi])
 
+  const handleToggleActive = useCallback(async (record: ShippingMethodPojo) => {
+    const id = record.id
+    if (id == null) return
+    const nextActive = !(record.active ?? false)
+    try {
+      await updateShippingMethod(id, { ...record, active: nextActive })
+      messageApi.success(nextActive ? 'Đã bật phương thức' : 'Đã tắt phương thức')
+      mutate()
+    } catch {
+      messageApi.error('Không cập nhật được trạng thái')
+      mutate()
+    }
+  }, [mutate, messageApi])
+
   const handleFormSubmit = async (values: Record<string, unknown>) => {
     setSubmitting(true)
     try {
+      const toInt = (v: unknown, fallback = 0) => {
+        const n = Number(v)
+        return Number.isFinite(n) ? Math.trunc(n) : fallback
+      }
+      const rawName = typeof values.name === 'string' ? values.name.trim() : ''
       const payload: ShippingMethodPojo = {
-        name: values.name as string,
-        baseFee: Number(values.baseFee),
+        name: rawName,
+        baseFee: toInt(values.baseFee, 0),
         freeShippingThreshold: values.freeShippingThreshold
-          ? Number(values.freeShippingThreshold)
+          ? toInt(values.freeShippingThreshold, 0)
           : undefined,
-        estimatedDaysMin: Number(values.estimatedDaysMin),
-        estimatedDaysMax: Number(values.estimatedDaysMax),
-        active: values.active as boolean ?? true,
-        pricePerKm: values.pricePerKm ? Number(values.pricePerKm) : undefined,
+        estimatedDaysMin: toInt(values.estimatedDaysMin, 0),
+        estimatedDaysMax: toInt(values.estimatedDaysMax, 0),
+        active: values.active !== undefined && values.active !== null ? Boolean(values.active) : true,
+        pricePerKm: values.pricePerKm ? toInt(values.pricePerKm, 0) : undefined,
         carrierCode: (values.carrierCode as string) || 'LOCAL',
         rateMode: (values.rateMode as string) || 'DISTANCE',
         carrierServiceCode: values.carrierServiceCode as string | undefined,
-        carrierShopId: values.carrierShopId ? Number(values.carrierShopId) : undefined,
+        carrierShopId: values.carrierShopId ? toInt(values.carrierShopId, 0) : undefined,
       }
 
       if (editingMethod) {
-        await updateShippingMethod(editingMethod.id!, payload)
+        const editId = editingMethod.id
+        if (editId == null || !Number.isFinite(Number(editId))) {
+          messageApi.error('Thiếu mã phương thức — tải lại trang và thử lại.')
+          return
+        }
+        await updateShippingMethod(editId, payload)
         messageApi.success('Cập nhật thành công')
       } else {
         await createShippingMethod(payload)
@@ -189,11 +226,11 @@ const ShippingListView: React.FC = () => {
       width: 100,
       render: (active: boolean, record: ShippingMethodPojo) => (
         <Switch
-          checked={active}
+          checked={Boolean(active)}
           checkedChildren="Bật"
           unCheckedChildren="Tắt"
           onChange={() => {
-            handleFormSubmit({ ...record, active: !active })
+            void handleToggleActive(record)
           }}
         />
       ),
@@ -217,7 +254,14 @@ const ShippingListView: React.FC = () => {
             description={`Xóa "${record.name}"?`}
             okText="Xóa"
             okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(record.id!)}
+            onConfirm={() => {
+              const rid = record.id
+              if (rid == null || !Number.isFinite(Number(rid))) {
+                messageApi.error('Không xác định được phương thức — tải lại trang.')
+                return
+              }
+              void handleDelete(rid)
+            }}
           >
             <Button type="text" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -264,13 +308,13 @@ const ShippingListView: React.FC = () => {
       <AppTable
         rowKey="id"
         columns={columns}
-        dataSource={data?.data ?? []}
+        dataSource={data?.rows ?? []}
         loading={isLoading}
         scroll={{ x: 700 }}
         pagination={{
-          current: queryParams.page ?? 1,
-          pageSize: queryParams.size ?? 20,
-          total: data?.totalElements ?? 0,
+          current: (queryParams.pageIndex ?? 0) + 1,
+          pageSize: queryParams.pageSize ?? 20,
+          total: data?.totalCount ?? 0,
           showSizeChanger: true,
           showTotal: (t, range) => `${range[0]}–${range[1]} của ${t} phương thức`,
           onChange: handleTableChange,
@@ -298,9 +342,8 @@ const ShippingListView: React.FC = () => {
           <Form.Item
             name="name"
             label="Tên phương thức"
-            rules={[{ required: true, message: 'Vui lòng nhập tên' }]}
           >
-            <Input placeholder="VD: Giao hàng tiêu chuẩn" />
+            <Input placeholder="VD: Giao hàng tiêu chuẩn (để trống = tên mặc định)" />
           </Form.Item>
 
           <Row gutter={[12, 0]}>
@@ -308,7 +351,6 @@ const ShippingListView: React.FC = () => {
               <Form.Item
                 name="baseFee"
                 label="Phí cơ bản (VND)"
-                rules={[{ required: true, message: 'Vui lòng nhập phí' }]}
               >
                 <Input type="number" min={0} placeholder="VD: 30000" />
               </Form.Item>
@@ -374,18 +416,16 @@ const ShippingListView: React.FC = () => {
               <Form.Item
                 name="estimatedDaysMin"
                 label="Ngày giao tối thiểu"
-                rules={[{ required: true }]}
               >
-                <Input type="number" min={1} />
+                <Input type="number" min={0} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="estimatedDaysMax"
                 label="Ngày giao tối đa"
-                rules={[{ required: true, message: 'Vui lòng nhập' }]}
               >
-                <Input type="number" min={1} />
+                <Input type="number" min={0} />
               </Form.Item>
             </Col>
           </Row>

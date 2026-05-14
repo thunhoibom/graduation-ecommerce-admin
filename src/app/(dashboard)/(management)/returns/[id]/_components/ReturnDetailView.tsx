@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Tag, Button, Space,
   Divider, Spin, Breadcrumb, Row, Col, Statistic, message,
-  Steps, Alert, Input, Modal,
+  Steps, Alert, Input, Modal, Upload, Image, Select,
 } from 'antd'
 import {
   ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  SyncOutlined, UndoOutlined, FormOutlined,
+  SyncOutlined, UndoOutlined, FormOutlined, PlusOutlined,
 } from '@ant-design/icons'
+import type { UploadFile, UploadProps } from 'antd/es/upload'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
@@ -24,9 +25,12 @@ import {
   startRefundProcessing,
   completeRefund,
   cancelReturn,
+  submitReturnQc,
   type ReturnRequestPojo,
   type ReturnRequestItemPojo,
 } from '@/services/rest-api/app-api/returns/return-service'
+import { getOrderById, type OrderPojo } from '@/services/rest-api/app-api/orders/order-service'
+import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -63,6 +67,12 @@ const REFUND_METHOD_LABEL: Record<string, string> = {
   BANK_TRANSFER:   'Chuyển khoản ngân hàng',
 }
 
+const QC_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Chờ kiểm tra',
+  PASSED: 'Đạt',
+  FAILED: 'Không đạt',
+}
+
 // ── ReturnDetailView ─────────────────────────────────────────────
 
 interface ReturnDetailViewProps {
@@ -74,8 +84,17 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   const [messageApi, contextHolder] = message.useMessage()
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false)
+  const [qcModalOpen, setQcModalOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
+  const [refundProofUrl, setRefundProofUrl] = useState('')
+  const [refundProofFileList, setRefundProofFileList] = useState<UploadFile[]>([])
+  const [refundReference, setRefundReference] = useState('')
+  const [completeNotes, setCompleteNotes] = useState('')
+  const [qcResult, setQcResult] = useState<'PASSED' | 'FAILED'>('PASSED')
+  const [qcNotes, setQcNotes] = useState('')
+  const [qcPhotoFileList, setQcPhotoFileList] = useState<UploadFile[]>([])
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
 
@@ -83,6 +102,19 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
     [SWR_KEYS.RETURN_DETAIL, returnId],
     async () => getReturnById(returnId),
     { revalidateOnMount: true },
+  )
+
+  const resolvedOrderId =
+    ret?.orderId != null
+      ? Number(ret.orderId)
+      : ret?.order?.id != null
+        ? Number(ret.order.id)
+        : undefined
+
+  const { data: fallbackOrder } = useAxiosSWR<OrderPojo>(
+    resolvedOrderId ? [SWR_KEYS.ORDER_DETAIL, resolvedOrderId] : null,
+    resolvedOrderId ? async () => getOrderById(resolvedOrderId) : null,
+    { revalidateOnMount: true, showErrorNotification: false },
   )
 
   const handleAction = async (
@@ -95,13 +127,107 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
         case 'reject':     await rejectReturn(returnId, reason); break
         case 'receive':    await receiveReturn(returnId); break
         case 'startRefund': await startRefundProcessing(returnId); break
-        case 'complete':   await completeRefund(returnId); break
+        case 'complete':   await completeRefund(returnId, { adminNotes: reason }); break
         case 'cancel':    await cancelReturn(returnId, reason); break
       }
       messageApi.success('Cập nhật trạng thái thành công')
       mutate()
     } catch {
       messageApi.error('Thao tác thất bại')
+    }
+  }
+
+  const resetCompleteRefundForm = () => {
+    setCompleteNotes('')
+    setRefundProofUrl('')
+    setRefundProofFileList([])
+    setRefundReference('')
+  }
+
+  const handleRefundProofUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+      setRefundProofUrl(result.url)
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh biên lai thất bại')
+    }
+  }
+
+  const handleRefundProofChange: UploadProps['onChange'] = ({ fileList }) => {
+    const nextFileList = fileList.slice(-1)
+    setRefundProofFileList(nextFileList)
+    const uploaded = nextFileList[0]?.response as { url?: string } | undefined
+    if (!nextFileList.length) {
+      setRefundProofUrl('')
+      return
+    }
+    if (uploaded?.url) {
+      setRefundProofUrl(uploaded.url)
+    }
+  }
+
+  const handleConfirmCompleteRefund = async () => {
+    const proofUrl = refundProofUrl.trim()
+    const reference = refundReference.trim()
+    if (ret?.refundMethod === 'BANK_TRANSFER' && !proofUrl && !reference) {
+      messageApi.error('Vui lòng tải ảnh biên lai chuyển khoản hoặc nhập mã giao dịch')
+      return
+    }
+    try {
+      await completeRefund(returnId, {
+        adminNotes: completeNotes || undefined,
+        refundProofUrl: proofUrl || undefined,
+        refundReference: reference || undefined,
+      })
+      messageApi.success('Đã xác nhận hoàn tiền')
+      setCompleteModalOpen(false)
+      resetCompleteRefundForm()
+      mutate()
+    } catch {
+      messageApi.error('Xác nhận hoàn tiền thất bại')
+    }
+  }
+
+  const resetQcForm = () => {
+    setQcResult('PASSED')
+    setQcNotes('')
+    setQcPhotoFileList([])
+  }
+
+  const handleQcPhotoUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+    } catch (err) {
+      onError?.(err as Error)
+      messageApi.error('Upload ảnh QC thất bại')
+    }
+  }
+
+  const handleQcPhotoChange: UploadProps['onChange'] = ({ fileList }) => {
+    setQcPhotoFileList(fileList.slice(0, 3))
+  }
+
+  const handleConfirmQc = async () => {
+    const photoUrls = qcPhotoFileList
+      .map((file) => (file.response as { url?: string } | undefined)?.url ?? file.url)
+      .filter((url): url is string => Boolean(url))
+    try {
+      await submitReturnQc(returnId, {
+        result: qcResult,
+        qcNotes: qcNotes || undefined,
+        photoUrls: photoUrls.length ? photoUrls : undefined,
+      })
+      messageApi.success(qcResult === 'PASSED' ? 'QC đạt, đã cộng lại tồn kho' : 'Đã ghi nhận QC không đạt')
+      setQcModalOpen(false)
+      resetQcForm()
+      mutate()
+    } catch {
+      messageApi.error('Ghi nhận QC thất bại')
     }
   }
 
@@ -134,6 +260,11 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   }
 
   const status = ret.status ?? 'PENDING'
+  const qcStatus = ret.qcStatus ?? (status === 'RECEIVED' ? 'PENDING' : undefined)
+  const qcPhotoList = (ret.qcPhotoUrls ?? '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean)
   const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
 
   // Steps — map status to index
@@ -141,6 +272,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
     { title: 'Chờ duyệt',    description: 'Yêu cầu được gửi' },
     { title: 'Đã duyệt',      description: 'Admin duyệt đồng ý' },
     { title: 'Đã nhận hàng',  description: 'Nhận lại sản phẩm' },
+    { title: 'Kiểm tra hàng', description: 'QC kho' },
     { title: 'Đang hoàn tiền',description: 'Đang xử lý hoàn tiền' },
     { title: 'Hoàn tiền xong',description: 'Hoàn tất' },
   ]
@@ -150,12 +282,39 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   const statusToIndex: Record<string, number> = {
     PENDING: 0,
     APPROVED: 1,
-    RECEIVED: 2,
-    REFUND_PROCESSING: 3,
-    REFUND_COMPLETED: 4,
+    RECEIVED: qcStatus === 'PASSED' ? 3 : 2,
+    REFUND_PROCESSING: 4,
+    REFUND_COMPLETED: 5,
   }
 
   const currentStep = statusToIndex[status] ?? 0
+  const orderInfo = ret.order ?? {
+    id: fallbackOrder?.id,
+    date: fallbackOrder?.date,
+    recipientName: fallbackOrder?.recipientName
+      ?? [fallbackOrder?.customer?.firstName, fallbackOrder?.customer?.lastName].filter(Boolean).join(' ')
+      ?? undefined,
+    recipientPhone: fallbackOrder?.recipientPhone ?? fallbackOrder?.customer?.phone1,
+    totalValue: fallbackOrder?.totalValue,
+    status: fallbackOrder?.status ?? fallbackOrder?.fulfillmentStatus,
+  }
+  const displayItems = (ret.items ?? []).map((item) => {
+    const matchedDetail = (fallbackOrder?.details ?? []).find((detail) => {
+      if (item.variantId && detail.variantId) {
+        return Number(detail.variantId) === Number(item.variantId)
+      }
+      if (item.productId && detail.product?.id) {
+        return Number(detail.product.id) === Number(item.productId)
+      }
+      return false
+    })
+    const unitValue = matchedDetail?.unitValue
+    return {
+      ...item,
+      product: item.product ?? matchedDetail?.product,
+      returnValue: unitValue != null ? unitValue * (item.quantity ?? 0) : undefined,
+    }
+  })
 
   // ── Action buttons by status ──────────────────────────────────
 
@@ -203,15 +362,27 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
           </Button>
         )
       case 'RECEIVED':
+        if (qcStatus === 'PASSED') {
+          return (
+            <Button
+              block
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleAction('startRefund')}
+              style={{ backgroundColor: '#1677ff', borderColor: '#1677ff' }}
+            >
+              Bắt đầu hoàn tiền
+            </Button>
+          )
+        }
         return (
           <Button
             block
             type="primary"
-            icon={<CheckCircleOutlined />}
-            onClick={() => handleAction('startRefund')}
-            style={{ backgroundColor: '#1677ff', borderColor: '#1677ff' }}
+            icon={<FormOutlined />}
+            onClick={() => setQcModalOpen(true)}
           >
-            Bắt đầu hoàn tiền
+            Kiểm tra hàng (QC)
           </Button>
         )
       case 'REFUND_PROCESSING':
@@ -220,7 +391,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
             block
             type="primary"
             icon={<CheckCircleOutlined />}
-            onClick={() => handleAction('complete')}
+            onClick={() => setCompleteModalOpen(true)}
             style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
           >
             Xác nhận hoàn tiền xong
@@ -239,7 +410,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
       key: 'product',
       render: (_: unknown, record: ReturnRequestItemPojo) => (
         <div>
-          <Text strong>{record.product?.name ?? `Sản phẩm #${record.productId ?? record.id}`}</Text>
+          <Text strong>{record.product?.name ?? `Sản phẩm #${record.productId ?? record.variantId ?? record.id}`}</Text>
           {record.product?.barcode && (
             <>
               <br />
@@ -275,8 +446,8 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
       key: 'returnPrice',
       width: 130,
       align: 'right' as const,
-      render: (_: unknown, record: ReturnRequestItemPojo) => (
-        <Text type="secondary">{formatVND(record.quantity)}</Text>
+      render: (_: unknown, record: ReturnRequestItemPojo & { returnValue?: number }) => (
+        <Text type="secondary">{formatVND(record.returnValue)}</Text>
       ),
     },
     {
@@ -328,6 +499,105 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
           onChange={(e) => setCancelReason(e.target.value)}
           style={{ marginTop: 8 }}
         />
+      </Modal>
+
+      <Modal
+        title="Kiểm tra hàng trả (QC)"
+        open={qcModalOpen}
+        onCancel={() => {
+          setQcModalOpen(false)
+          resetQcForm()
+        }}
+        onOk={handleConfirmQc}
+        okText="Lưu kết quả QC"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <Text type="secondary">
+            Chỉ khi QC đạt hệ thống mới cộng lại tồn kho và cho phép hoàn tiền.
+          </Text>
+          <Select
+            value={qcResult}
+            onChange={(value) => setQcResult(value)}
+            options={[
+              { value: 'PASSED', label: 'Đạt — cộng lại tồn kho' },
+              { value: 'FAILED', label: 'Không đạt — từ chối hoàn tiền' },
+            ]}
+          />
+          <TextArea
+            rows={3}
+            placeholder="Ghi chú kiểm hàng"
+            value={qcNotes}
+            onChange={(e) => setQcNotes(e.target.value)}
+          />
+          <div>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              Ảnh kiện hàng / tình trạng sản phẩm
+            </Text>
+            <Upload
+              accept="image/*"
+              listType="picture-card"
+              fileList={qcPhotoFileList}
+              customRequest={handleQcPhotoUpload}
+              onChange={handleQcPhotoChange}
+              maxCount={3}
+            >
+              {qcPhotoFileList.length >= 3 ? null : (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Tải ảnh</div>
+                </div>
+              )}
+            </Upload>
+          </div>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Xác nhận hoàn tiền"
+        open={completeModalOpen}
+        onCancel={() => {
+          setCompleteModalOpen(false)
+          resetCompleteRefundForm()
+        }}
+        onOk={handleConfirmCompleteRefund}
+        okText="Xác nhận đã hoàn"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <Text type="secondary">
+            Tải ảnh biên lai chuyển khoản (lưu trên hệ thống) và/hoặc nhập mã giao dịch để audit hoàn tiền thủ công.
+          </Text>
+          <Input
+            placeholder="Mã giao dịch / nội dung chuyển khoản"
+            value={refundReference}
+            onChange={(e) => setRefundReference(e.target.value)}
+          />
+          <div>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              Ảnh biên lai chuyển khoản
+            </Text>
+            <Upload
+              accept="image/*"
+              listType="picture-card"
+              fileList={refundProofFileList}
+              customRequest={handleRefundProofUpload}
+              onChange={handleRefundProofChange}
+              maxCount={1}
+            >
+              {refundProofFileList.length >= 1 ? null : (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Tải ảnh</div>
+                </div>
+              )}
+            </Upload>
+          </div>
+          <TextArea
+            rows={3}
+            placeholder="Ghi chú hoàn tiền"
+            value={completeNotes}
+            onChange={(e) => setCompleteNotes(e.target.value)}
+          />
+        </Space>
       </Modal>
 
       {/* Header */}
@@ -399,11 +669,20 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
               style={{ marginBottom: 16 }}
             />
           )}
+          {status === 'RECEIVED' && qcStatus === 'PENDING' && (
+            <Alert
+              type="info"
+              message="Chờ kiểm tra hàng (QC)"
+              description="Kiện hàng đã về kho. Cần QC đạt trước khi cộng lại tồn kho và hoàn tiền."
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
 
           {/* Return items */}
           <Card title="Sản phẩm yêu cầu trả" style={{ marginBottom: 16 }}>
             <Table
-              dataSource={ret.items ?? []}
+              dataSource={displayItems}
               rowKey="id"
               columns={itemColumns}
               pagination={false}
@@ -417,7 +696,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
                     </Table.Summary.Cell>
                     <Table.Summary.Cell index={1} align="center">
                       <Text strong>
-                        {(ret.items ?? []).reduce((sum, i) => sum + (i.quantity ?? 0), 0)}
+                        {displayItems.reduce((sum, i) => sum + (i.quantity ?? 0), 0)}
                       </Text>
                     </Table.Summary.Cell>
                     <Table.Summary.Cell index={2}>
@@ -470,6 +749,55 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
               <Descriptions.Item label="Phương thức">
                 {REFUND_METHOD_LABEL[ret.refundMethod ?? ''] ?? ret.refundMethod ?? '—'}
               </Descriptions.Item>
+              <Descriptions.Item label="QC kho">
+                {qcStatus ? (QC_STATUS_LABEL[qcStatus] ?? qcStatus) : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ghi chú QC">
+                {ret.qcNotes ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ảnh QC">
+                {qcPhotoList.length ? (
+                  <Space wrap>
+                    {qcPhotoList.map((url) => (
+                      <Image
+                        key={url}
+                        src={url}
+                        alt="Ảnh QC"
+                        width={72}
+                        style={{ borderRadius: 4 }}
+                      />
+                    ))}
+                  </Space>
+                ) : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Thời điểm QC">
+                {formatDate(ret.qcCompletedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ngân hàng">
+                {ret.refundBankName ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Số tài khoản">
+                {ret.refundBankAccountNumber ? <Text copyable>{ret.refundBankAccountNumber}</Text> : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Chủ tài khoản">
+                {ret.refundBankAccountHolder ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Mã giao dịch hoàn">
+                {ret.refundReference ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ảnh biên lai">
+                {ret.refundProofUrl ? (
+                  <Image
+                    src={ret.refundProofUrl}
+                    alt="Ảnh biên lai chuyển khoản"
+                    width={120}
+                    style={{ borderRadius: 4 }}
+                  />
+                ) : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Thời điểm hoàn">
+                {formatDate(ret.refundedAt)}
+              </Descriptions.Item>
               <Descriptions.Item label="Mã vận đơn">
                 {ret.trackingNumber ? (
                   <Text copyable style={{ fontFamily: 'monospace' }}>{ret.trackingNumber}</Text>
@@ -481,29 +809,29 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
           </Card>
 
           {/* Original order info */}
-          {ret.orderId && (
+          {resolvedOrderId && (
             <Card title="Đơn hàng gốc" style={{ marginBottom: 16 }}>
               <Descriptions column={1} bordered size="small">
                 <Descriptions.Item label="Mã đơn">
-                  <Text code>#{ret.orderId}</Text>
+                  <Text code>#{resolvedOrderId}</Text>
                 </Descriptions.Item>
                 <Descriptions.Item label="Ngày đặt">
-                  {formatDate(ret.order?.date)}
+                  {formatDate(orderInfo?.date)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Người nhận">
-                  {ret.order?.recipientName ?? '—'}
+                  {orderInfo?.recipientName ?? '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="SĐT">
-                  {ret.order?.recipientPhone ?? '—'}
+                  {orderInfo?.recipientPhone ?? '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Tổng tiền đơn">
-                  {formatVND(ret.order?.totalValue)}
+                  {formatVND(orderInfo?.totalValue)}
                 </Descriptions.Item>
               </Descriptions>
               <Button
                 type="link"
                 style={{ padding: 0, marginTop: 8 }}
-                onClick={() => router.push(`/orders/${ret.orderId}`)}
+                onClick={() => router.push(`/orders/${resolvedOrderId}`)}
               >
                 Xem chi tiết đơn hàng →
               </Button>

@@ -249,7 +249,7 @@ const MediaListView: React.FC = () => {
           />
         </div>
       }
-      bodyStyle={{ padding: 10 }}
+      styles={{ body: { padding: 10 } }}
       actions={[
         <Tooltip title="Copy URL" key="copy">
           <Button type="text" size="small" icon={<LinkOutlined />} onClick={() => handleCopyUrl(record.url)} />

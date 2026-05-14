@@ -23,6 +23,12 @@ export const paths = {
     variants: (id: string) => `/products/${id}/variants`,
   },
 
+  // Blog
+  blog: {
+    root: '/blog',
+    list: '/blog/list',
+  },
+
   // Categories
   categories: {
     root: '/categories',
@@ -78,6 +84,11 @@ export const paths = {
     root: '/settings',
   },
 
+  // Personalization
+  personalization: {
+    root: '/personalization',
+  },
+
   // Inventory
   inventory: {
     stockAdjustments: '/inventory/stock-adjustments',
@@ -85,6 +96,7 @@ export const paths = {
     purchaseOrders: '/inventory/purchase-orders',
     transfers: '/inventory/transfers',
     stockCounts: '/inventory/stock-counts',
+    barcodeTools: '/inventory/barcode-tools',
   },
 
   // Finance

@@ -32,6 +32,11 @@ export type ProductPojo = {
   barcode: string
   description?: string
   price: number
+  /** Giá hiệu lực (ưu tiên hiển thị) */
+  currentPrice?: number
+  originalPrice?: number
+  discountPercent?: number
+  hasDiscount?: boolean
   status: ProductStatus
   currentStock?: number
   reservedStock?: number
@@ -101,20 +106,30 @@ export type ProductAuditLogPojo = {
 
 export type ProductSearchParams = {
   name?: string
+  /** Tìm trong tên, mô tả, tên danh mục (backend `query`) */
+  query?: string
   barcode?: string
+  barcodeLike?: string
   categoryCode?: string
   minPrice?: number
   maxPrice?: number
+  /** Chỉ sản phẩm có tồn kho > 0 */
+  inStock?: boolean
   pageIndex?: number
   pageSize?: number
   sortField?: string
   sortDirection?: 'ASC' | 'DESC'
+  /** Backend: `sortBy` + `order` (asc|desc) */
+  sortBy?: string
+  order?: 'asc' | 'desc'
   status?: ProductStatus
 }
 
 export type VariantSearchParams = {
   productBarcode?: string
   sku?: string
+  skuLike?: string
+  query?: string
   size?: string
   color?: string
   active?: boolean

@@ -210,7 +210,7 @@ const SettingsView: React.FC = () => {
       <Card
         size="small"
         style={{ marginBottom: 16, background: '#f6ffed', border: '1px solid #b7eb8f' }}
-        bodyStyle={{ padding: '12px 16px' }}
+        styles={{ body: { padding: '12px 16px' } }}
       >
         <Space>
           <Text type="secondary" style={{ fontSize: 13 }}>
@@ -221,7 +221,7 @@ const SettingsView: React.FC = () => {
       </Card>
 
       {/* Tabs */}
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Tabs
           defaultActiveKey="shop"
           tabBarStyle={{ paddingLeft: 16, marginBottom: 0 }}

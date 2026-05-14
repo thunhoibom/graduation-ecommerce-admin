@@ -122,16 +122,18 @@ const DataTable: React.FC<DataTableProps> = ({
       },
       {
         title: 'Giá bán',
-        dataIndex: 'price',
         key: 'price',
-        width: 120,
+        width: 130,
         align: 'right',
         sorter: true,
-        render: (price: number) => (
-          <Text style={{ color: '#52c41a', fontWeight: 600 }}>
-            {formatVND(price)}
-          </Text>
-        ),
+        render: (_: unknown, record: ProductPojo) => {
+          const display = record.currentPrice ?? record.price
+          return (
+            <Text style={{ color: '#52c41a', fontWeight: 600 }}>
+              {formatVND(display)}
+            </Text>
+          )
+        },
       },
       {
         title: 'Trạng thái',
@@ -172,6 +174,28 @@ const DataTable: React.FC<DataTableProps> = ({
         },
       },
       {
+        title: 'Tồn kho',
+        key: 'stock',
+        width: 110,
+        align: 'right',
+        render: (_: unknown, record: ProductPojo) => {
+          const cur = record.currentStock ?? 0
+          const res = record.reservedStock ?? 0
+          return (
+            <Tooltip title={`Thực tế: ${cur} · Đang giữ: ${res} · Khả dụng: ${record.availableStock ?? cur - res}`}>
+              <Space orientation="vertical" size={0}>
+                <Text strong>{cur}</Text>
+                {res > 0 ? (
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    giữ {res}
+                  </Text>
+                ) : null}
+              </Space>
+            </Tooltip>
+          )
+        },
+      },
+      {
         title: 'Khả dụng',
         dataIndex: 'availableStock',
         key: 'availableStock',
@@ -195,10 +219,18 @@ const DataTable: React.FC<DataTableProps> = ({
         align: 'center',
         render: (rating: number | undefined, record: ProductPojo) => {
           if (!rating) return <Text type="secondary">—</Text>
+          const reviews = record.totalReviews
           return (
-            <Space size={4}>
-              <span style={{ color: '#faad14' }}>★</span>
-              <Text>{rating.toFixed(1)}</Text>
+            <Space size={4} orientation="vertical" style={{ alignItems: 'center' }}>
+              <Space size={4}>
+                <span style={{ color: '#faad14' }}>★</span>
+                <Text>{rating.toFixed(1)}</Text>
+              </Space>
+              {reviews != null && reviews > 0 ? (
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  {reviews} lượt
+                </Text>
+              ) : null}
             </Space>
           )
         },
@@ -256,7 +288,7 @@ const DataTable: React.FC<DataTableProps> = ({
       columns={columns}
       dataSource={data}
       loading={loading}
-      scroll={{ x: 1000 }}
+      scroll={{ x: 1180 }}
       rowSelection={rowSelection}
       pagination={{
         current,

@@ -17,12 +17,14 @@ import {
   PictureOutlined,
   InboxOutlined,
   ShopOutlined,
-  SwapOutlined,
   AuditOutlined,
+  QrcodeOutlined,
   CreditCardOutlined,
   DollarCircleOutlined,
   WarningOutlined,
   FileDoneOutlined,
+  ReadOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { paths } from '@/routes/paths'
@@ -78,6 +80,11 @@ const menuItems: MenuProps['items'] = [
     ],
   },
   {
+    key: 'blog',
+    icon: <ReadOutlined />,
+    label: <Link href={paths.blog.list}>Blog</Link>,
+  },
+  {
     key: 'customers',
     icon: <TeamOutlined />,
     label: <Link href={paths.customers.list}>Khách hàng</Link>,
@@ -130,9 +137,9 @@ const menuItems: MenuProps['items'] = [
         label: <Link href={paths.inventory.purchaseOrders}>Purchase Orders</Link>,
       },
       {
-        key: paths.inventory.transfers,
-        icon: <SwapOutlined />,
-        label: <Link href={paths.inventory.transfers}>Chuyển kho nội bộ</Link>,
+        key: paths.inventory.barcodeTools,
+        icon: <QrcodeOutlined />,
+        label: <Link href={paths.inventory.barcodeTools}>Mã vạch và quét</Link>,
       },
       {
         key: paths.inventory.stockCounts,
@@ -167,6 +174,11 @@ const menuItems: MenuProps['items'] = [
         label: <Link href={paths.finance.settlements}>Chốt số kỳ kế toán</Link>,
       },
     ],
+  },
+  {
+    key: paths.settings.root,
+    icon: <SettingOutlined />,
+    label: <Link href={paths.settings.root}>Cài đặt hệ thống</Link>,
   },
 ]
 

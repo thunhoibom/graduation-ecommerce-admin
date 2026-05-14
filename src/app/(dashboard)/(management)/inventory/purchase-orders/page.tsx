@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
-import { Breadcrumb, Button, Card, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Breadcrumb, Button, Card, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message, Alert, Switch } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
@@ -19,6 +19,8 @@ import {
   type SupplierPojo,
 } from '@/services/rest-api/app-api/inventory/inventory-management-service'
 import { searchVariants, type ProductVariantPojo } from '@/services/rest-api/app-api/products/product-service'
+import { useBarcodeScanner } from '@/shared/hooks/useBarcodeScanner'
+import { playSuccessBeep, playErrorBuzzer } from '@/shared/utils/soundUtils'
 
 const { Title, Text } = Typography
 
@@ -38,6 +40,9 @@ export default function PurchaseOrdersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  
   const [createForm] = Form.useForm<PurchaseOrderCreateRequest>()
   const [receiveForm] = Form.useForm<GoodsReceiptCreateRequest>()
 
@@ -78,6 +83,43 @@ export default function PurchaseOrdersPage() {
     mutate()
     mutateDetail()
   }
+
+  useBarcodeScanner({
+    isActive: receiveOpen && isScanning,
+    onScan: (barcode) => {
+      if (!detail?.lines) return
+
+      const lines = receiveForm.getFieldValue('lines') || []
+      
+      // Find matching line by barcode (if added to Pojo) or variantSku
+      const matchedLineIndex = detail.lines.findIndex(l => 
+        (l as any).barcode === barcode || l.variantSku === barcode
+      )
+
+      if (matchedLineIndex === -1) {
+        playErrorBuzzer()
+        setScanMessage({ type: 'error', text: `Không tìm thấy sản phẩm có mã ${barcode} trong đơn hàng này!` })
+        return
+      }
+
+      const poLine = detail.lines[matchedLineIndex]
+      const currentReceived = lines[matchedLineIndex]?.receivedQty || 0
+      
+      // We can allow over-receiving, but usually we just increment
+      const newQty = currentReceived + 1
+      
+      // Update form
+      const newLines = [...lines]
+      newLines[matchedLineIndex] = {
+        ...newLines[matchedLineIndex],
+        receivedQty: newQty
+      }
+      receiveForm.setFieldsValue({ lines: newLines })
+      
+      playSuccessBeep()
+      setScanMessage({ type: 'success', text: `Quét thành công: ${poLine.productName || poLine.variantSku} (+1)` })
+    }
+  })
 
   const runAction = async (action: () => Promise<unknown>, successMsg: string) => {
     try {
@@ -174,9 +216,11 @@ export default function PurchaseOrdersPage() {
                   receiveForm.setFieldsValue({
                     lines: detail.lines?.map((line) => ({
                       purchaseOrderLineId: line.id,
-                      receivedQty: Math.max(0, line.orderedQty - line.receivedQty),
+                      receivedQty: 0, // Default to 0 so they can scan
                     })),
                   })
+                  setScanMessage(null)
+                  setIsScanning(true)
                   setReceiveOpen(true)
                 }}>Nhập kho</Button>
               )}
@@ -247,12 +291,37 @@ export default function PurchaseOrdersPage() {
       </Modal>
 
       <Modal
-        title="Nhập kho theo PO"
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 24 }}>
+            <span>Nhập kho theo PO</span>
+            <Space>
+              <Text style={{ fontSize: 14, fontWeight: 'normal' }}>Chế độ quét:</Text>
+              <Switch checked={isScanning} onChange={setIsScanning} />
+            </Space>
+          </div>
+        }
         open={receiveOpen}
         onCancel={() => setReceiveOpen(false)}
         onOk={() => receiveForm.submit()}
         confirmLoading={submitting}
+        width={700}
       >
+        {isScanning && (
+          <Alert 
+            message="Đang ở chế độ quét mã vạch. Vui lòng dùng máy quét để nhập hàng." 
+            type="info" 
+            showIcon 
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        {scanMessage && (
+          <Alert 
+            message={scanMessage.text} 
+            type={scanMessage.type} 
+            showIcon 
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Form form={receiveForm} layout="vertical" onFinish={handleReceive}>
           <Form.List name="lines">
             {(fields) => (

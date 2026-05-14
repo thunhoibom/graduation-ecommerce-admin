@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Button, Space,
   Divider, Spin, Breadcrumb, Row, Col, Statistic, Tag,
-  Drawer, message, Alert,
+  Drawer, message, Alert, Popconfirm,
 } from 'antd'
 import {
   ArrowLeftOutlined, MailOutlined, PhoneOutlined, HomeOutlined,
-  ShoppingOutlined, DollarOutlined, GlobalOutlined, EditOutlined,
+  ShoppingOutlined, DollarOutlined, EditOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -17,15 +17,17 @@ import 'dayjs/locale/vi'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
 import {
-  getCustomerById,
-  getCustomerAddresses,
+  getCustomerDetail,
+  deleteCustomer,
   type CustomerPojo,
   type AddressPojo,
   type CustomerOrderPojo,
 } from '@/services/rest-api/app-api/customers/customer-service'
-import { ORDER_STATUS_CONFIG, normalizeOrderStatus } from '@/constants/order-status'
+import { FULFILLMENT_STATUS_CONFIG, normalizeOrderStatus } from '@/constants/order-status'
+import { getErrorMessage } from '@/services/rest-api/app-api/error-handle'
+import CustomerEditModal from './CustomerEditModal'
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
 
 const formatVND = (value: number | undefined) => {
   if (value === undefined || value === null) return '—'
@@ -47,23 +49,31 @@ interface CustomerDetailViewProps {
 
 const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) => {
   const router = useRouter()
-  const [messageApi, contextHolder] = message.useMessage()
   const [addressDrawerOpen, setAddressDrawerOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const { data: customer, isLoading, mutate } = useAxiosSWR<CustomerPojo>(
     [SWR_KEYS.CUSTOMER_DETAIL, customerId],
-    async () => getCustomerById(customerId),
+    async () => getCustomerDetail(customerId),
     { revalidateOnMount: true },
   )
 
-  const { data: addresses } = useAxiosSWR<AddressPojo[]>(
-    addressDrawerOpen ? [SWR_KEYS.CUSTOMER_DETAIL, customerId, 'addresses'] : null,
-    addressDrawerOpen ? async () => getCustomerAddresses(customerId) : null,
-    { revalidateOnMount: true },
-  )
-
-  // orders are embedded in the customer entity — no extra fetch needed
   const orders = customer?.orders ?? []
+  const addresses = customer?.addresses ?? []
+
+  const handleDeleted = async () => {
+    try {
+      setDeleting(true)
+      await deleteCustomer(customerId)
+      message.success('Đã xóa khách hàng')
+      router.push('/customers')
+    } catch (err) {
+      message.error(getErrorMessage(err) || 'Không thể xóa khách hàng.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -83,7 +93,6 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
 
   const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || '—'
 
-  // Order history columns
   const orderColumns: ColumnsType<CustomerOrderPojo> = [
     {
       title: 'Mã đơn',
@@ -114,7 +123,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
       width: 130,
       render: (status: string) => {
         const key = normalizeOrderStatus(status)
-        const cfg = ORDER_STATUS_CONFIG[key] ?? { color: 'default', label: status ?? '—' }
+        const cfg = FULFILLMENT_STATUS_CONFIG[key] ?? { color: 'default', label: status ?? '—' }
         return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
     },
@@ -195,19 +204,24 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
 
   return (
     <>
-      {contextHolder}
+      <CustomerEditModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        customerId={customerId}
+        customer={customer}
+        onSaved={() => mutate()}
+      />
 
-      {/* Address Drawer */}
       <Drawer
         title={`Địa chỉ giao hàng — ${fullName}`}
         open={addressDrawerOpen}
         onClose={() => setAddressDrawerOpen(false)}
         width={600}
       >
-        {addresses && addresses.length > 0 ? (
+        {addresses.length > 0 ? (
           <Table
             dataSource={addresses}
-            rowKey="id"
+            rowKey={(r) => String(r.id ?? `${r.label}-${r.address1}`)}
             columns={addressColumns}
             pagination={false}
             size="middle"
@@ -218,7 +232,6 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
         )}
       </Drawer>
 
-      {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <Breadcrumb
           items={[
@@ -228,50 +241,50 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
           ]}
           style={{ marginBottom: 8 }}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/customers')}>
             Quay lại
           </Button>
-          <Title level={3} style={{ margin: 0 }}>
+          <Title level={3} style={{ margin: 0, flex: 1 }}>
             Khách hàng #{customerId}
           </Title>
+          <Button type="primary" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
+            Chỉnh sửa
+          </Button>
+          <Popconfirm
+            title="Xóa khách hàng?"
+            description="Chỉ khách không có đơn và không có tài khoản đăng nhập mới xóa được."
+            onConfirm={handleDeleted}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true, loading: deleting }}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={deleting}>
+              Xóa
+            </Button>
+          </Popconfirm>
         </div>
       </div>
 
       <Row gutter={[16, 16]}>
-        {/* ── Left column ── */}
         <Col xs={24} lg={15}>
-
-          {/* Personal info */}
-          <Card
-            title="Thông tin cá nhân"
-            style={{ marginBottom: 16 }}
-            extra={
-              <Tag icon={<EditOutlined />} style={{ cursor: 'pointer' }}>
-                Chỉnh sửa
-              </Tag>
-            }
-          >
+          <Card title="Thông tin cá nhân" style={{ marginBottom: 16 }}>
             <Descriptions column={2} bordered size="small">
               <Descriptions.Item label="Họ">{customer.firstName ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Tên">{customer.lastName ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Email" span={2}>
-                {customer.email}
+                {customer.email ?? '—'}
               </Descriptions.Item>
               <Descriptions.Item label="SĐT chính">{customer.phone1 ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="SĐT phụ">{customer.phone2 ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="CMND/CCCD">{customer.idNumber ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Ngày đăng ký">
-                {formatDate(customer.createdAt)}
-              </Descriptions.Item>
             </Descriptions>
           </Card>
 
-          {/* Order history */}
           <Card title="Lịch sử đơn hàng" style={{ marginBottom: 16 }}>
-            {customer.orders && customer.orders.length > 0 ? (
+            {orders.length > 0 ? (
               <Table
-                dataSource={customer.orders}
+                dataSource={orders}
                 rowKey="id"
                 columns={orderColumns}
                 pagination={{ pageSize: 5, size: 'small' }}
@@ -288,10 +301,7 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
           </Card>
         </Col>
 
-        {/* ── Right column ── */}
         <Col xs={24} lg={9}>
-
-          {/* Stats */}
           <Card title="Thống kê" style={{ marginBottom: 16 }}>
             <Row gutter={[12, 12]}>
               <Col span={12}>
@@ -314,7 +324,6 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
             </Row>
           </Card>
 
-          {/* Contact */}
           <Card title="Liên hệ nhanh" style={{ marginBottom: 16 }}>
             <Space orientation="vertical" style={{ width: '100%' }}>
               {customer.email && (
@@ -340,7 +349,6 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
             </Space>
           </Card>
 
-          {/* Shipping addresses */}
           <Card
             title="Địa chỉ giao hàng"
             style={{ marginBottom: 16 }}
@@ -355,10 +363,10 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
               </Button>
             }
           >
-            {customer.addresses && customer.addresses.length > 0 ? (
+            {addresses.length > 0 ? (
               <Space orientation="vertical" style={{ width: '100%' }}>
-                {customer.addresses.slice(0, 3).map((addr, idx) => (
-                  <Card key={idx} size="small" style={{ background: '#fafafa' }}>
+                {addresses.slice(0, 3).map((addr) => (
+                  <Card key={addr.id ?? `${addr.label}-${addr.address1}`} size="small" style={{ background: '#fafafa' }}>
                     {addr.label && (
                       <Tag color="blue" style={{ marginBottom: 4 }}>{addr.label}</Tag>
                     )}
@@ -378,17 +386,10 @@ const CustomerDetailView: React.FC<CustomerDetailViewProps> = ({ customerId }) =
             )}
           </Card>
 
-          {/* Metadata */}
           <Card title="Thông tin hệ thống">
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="ID">
                 <Text code>#{customerId}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Ngày tạo">
-                {formatDate(customer.createdAt)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Cập nhật lần cuối">
-                {formatDate(customer.lastModified)}
               </Descriptions.Item>
             </Descriptions>
           </Card>

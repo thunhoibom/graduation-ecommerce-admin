@@ -224,7 +224,7 @@ const DashboardView: React.FC = () => {
 
           {/* Inventory process KPI cards */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} lg={6}>
+            <Col xs={24} sm={12} lg={8}>
               <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">PO đang mở</Text>}
@@ -233,16 +233,7 @@ const DashboardView: React.FC = () => {
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <Statistic
-                  title={<Text type="secondary">Transfer chờ duyệt</Text>}
-                  value={stats?.inventoryKpis?.pendingTransferApprovals ?? 0}
-                  formatter={(v) => <span style={{ color: '#fa8c16' }}>{formatNumber(Number(v))}</span>}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
+            <Col xs={24} sm={12} lg={8}>
               <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Kiểm kê chờ approve</Text>}
@@ -251,7 +242,7 @@ const DashboardView: React.FC = () => {
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={12} lg={6}>
+            <Col xs={24} sm={12} lg={8}>
               <Card variant="borderless" style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <Statistic
                   title={<Text type="secondary">Variance chờ post</Text>}
@@ -461,7 +452,7 @@ const DashboardView: React.FC = () => {
                         key={item.variantId}
                         size="small"
                         style={{ borderRadius: 8, border: '1px solid #fff7e6', background: '#fffbe6' }}
-                        bodyStyle={{ padding: '8px 12px' }}
+                        styles={{ body: { padding: '8px 12px' } }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>

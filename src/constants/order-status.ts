@@ -113,10 +113,13 @@ export const normalizeOrderStatus = (status?: string): string => {
 export const getAvailableOrderActions = (
   fulfillmentStatus?: string,
   paymentStatus?: string,
+  paymentType?: string,
 ): OrderStatusAction[] => {
   const f = normalizeFulfillmentStatus(fulfillmentStatus)
   const p = normalizePaymentStatus(paymentStatus)
-  if (f === 'PENDING' && p !== 'PAID') {
+  const normalizedPaymentType = paymentType?.trim().toUpperCase()
+  const isCodAwaitingCollection = normalizedPaymentType === 'COD' && p === 'UNPAID'
+  if (f === 'PENDING' && p !== 'PAID' && !isCodAwaitingCollection) {
     return []
   }
   return ACTIONS_BY_FULFILLMENT_STATUS[f] ?? []

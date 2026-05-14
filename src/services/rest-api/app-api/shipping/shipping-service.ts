@@ -3,6 +3,13 @@ import { createApiService } from '../../utils'
 
 const shippingService = createApiService(appApiIns, '/api/data/shipping-methods')
 
+function requireShippingMethodId(id: number | undefined): number {
+  if (id == null || !Number.isFinite(Number(id))) {
+    throw new Error('Missing or invalid shipping method id')
+  }
+  return Number(id)
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────
@@ -23,19 +30,21 @@ export type ShippingMethodPojo = {
 }
 
 export type ShippingSearchParams = {
+  /** Exact match (backend `name`) */
   name?: string
+  /** Partial match (backend `nameLike`) */
+  nameLike?: string
   active?: boolean
-  page?: number
-  size?: number
+  /** 0-based, matches backend `PaginationService` */
+  pageIndex?: number
+  pageSize?: number
 }
 
+/** Mirrors backend {@link DataPagePojo} */
 export type PageResponse<T> = {
-  success: boolean
-  message?: string
-  data: T
-  totalElements: number
-  totalPages: number
-  currentPage: number
+  items: T
+  totalCount: number
+  pageIndex: number
   pageSize: number
 }
 
@@ -48,7 +57,7 @@ export const searchShippingMethods = (params?: ShippingSearchParams) => {
 }
 
 export const getShippingMethodById = (id: number) => {
-  return shippingService.get<ShippingMethodPojo>(`/${id}`)
+  return shippingService.get<ShippingMethodPojo>(`/${requireShippingMethodId(id)}`)
 }
 
 export const createShippingMethod = (data: ShippingMethodPojo) => {
@@ -56,9 +65,9 @@ export const createShippingMethod = (data: ShippingMethodPojo) => {
 }
 
 export const updateShippingMethod = (id: number, data: ShippingMethodPojo) => {
-  return shippingService.put<ShippingMethodPojo>(`/${id}`, data)
+  return shippingService.put<ShippingMethodPojo>(`/${requireShippingMethodId(id)}`, data)
 }
 
 export const deleteShippingMethod = (id: number) => {
-  return shippingService.delete<void>(`/${id}`)
+  return shippingService.delete<void>(`/${requireShippingMethodId(id)}`)
 }

@@ -3,6 +3,13 @@ import { createApiService } from '../../utils'
 
 const discountService = createApiService(appApiIns, '/api/data/discount-codes')
 
+function requireDiscountCodeId(id: number | undefined): number {
+  if (id == null || !Number.isFinite(Number(id))) {
+    throw new Error('Missing or invalid discount code id')
+  }
+  return Number(id)
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────
@@ -69,7 +76,7 @@ export const searchDiscounts = (params: DiscountSearchParams) => {
 }
 
 export const getDiscountById = (id: number) => {
-  return discountService.get<DiscountCodePojo>(`/${id}`)
+  return discountService.get<DiscountCodePojo>(`/${requireDiscountCodeId(id)}`)
 }
 
 export const createDiscount = (data: DiscountFormData) => {
@@ -77,13 +84,13 @@ export const createDiscount = (data: DiscountFormData) => {
 }
 
 export const updateDiscount = (id: number, data: DiscountFormData) => {
-  return discountService.put<DiscountCodePojo>(`/${id}`, data)
+  return discountService.put<DiscountCodePojo>(`/${requireDiscountCodeId(id)}`, data)
 }
 
 export const deleteDiscount = (id: number) => {
-  return discountService.delete<void>(`/${id}`)
+  return discountService.delete<void>(`/${requireDiscountCodeId(id)}`)
 }
 
 export const toggleDiscountActive = (id: number, active: boolean) => {
-  return discountService.patch<void>(`/${id}`, { active })
+  return discountService.patch<void>(`/${requireDiscountCodeId(id)}`, { active })
 }
