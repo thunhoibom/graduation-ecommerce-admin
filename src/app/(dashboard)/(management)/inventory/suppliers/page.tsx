@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Breadcrumb, Button, Card, Form, Input, Modal, Popconfirm, Space, Switch, Table, Typography, message } from 'antd'
+import { Breadcrumb, Button, Card, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
@@ -54,7 +54,7 @@ export default function InventorySuppliersPage() {
   }
 
   const columns: ColumnsType<SupplierPojo> = [
-    { title: 'Mã', dataIndex: 'code', width: 140, render: (v) => <Text code>{v}</Text> },
+    { title: 'Mã', dataIndex: 'code', width: 280, render: (v) => <Text code>{v}</Text> },
     { title: 'Tên', dataIndex: 'name', render: (v) => <Text strong>{v}</Text> },
     { title: 'Liên hệ', dataIndex: 'contactName', width: 180 },
     { title: 'SĐT', dataIndex: 'phone', width: 140 },
@@ -63,7 +63,11 @@ export default function InventorySuppliersPage() {
       title: 'Trạng thái',
       dataIndex: 'active',
       width: 110,
-      render: (active: boolean) => (active ? 'Active' : 'Inactive'),
+      render: (active: boolean) => (
+        <Tag color={active ? 'success' : 'default'}>
+          {active ? 'Đang hoạt động' : 'Tạm dừng'}
+        </Tag>
+      ),
     },
     {
       title: 'Thao tác',

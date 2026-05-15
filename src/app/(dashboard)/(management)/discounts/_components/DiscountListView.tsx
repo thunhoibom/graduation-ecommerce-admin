@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import {
-  Table, Tag, Space, Button, Typography, Card, Row, Col,
+  Table, Tag, Space, Button, Typography, Row, Col,
   Select, Input, Modal, Form, InputNumber, Switch, DatePicker,
   message, Popconfirm,
 } from 'antd'
@@ -25,6 +25,15 @@ import {
   type DiscountType,
 } from '@/services/rest-api/app-api/discounts/discount-service'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterActions,
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+  LIST_FILTER_SELECT_FLEX,
+} from '@/shared/components/list-filter'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -187,7 +196,7 @@ const DiscountListView: React.FC = () => {
         <Space orientation="vertical" size={0}>
           <Text code strong style={{ fontSize: 13 }}>{code}</Text>
           {record.currentlyValid === false && (
-            <Tag color="default" style={{ fontSize: 10 }}>Hết hạn</Tag>
+            <Tag color="default">Hết hạn</Tag>
           )}
         </Space>
       ),
@@ -310,45 +319,51 @@ const DiscountListView: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={12} md={8}>
-            <Input.Search
-              placeholder="Tìm mã giảm giá..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={(v) => setQueryParams((prev) => ({ ...prev, code: v || undefined, pageIndex: 0 }))}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Select
-              placeholder="Loại"
-              allowClear
-              style={{ width: '100%' }}
-              options={[
-                { label: 'Phần trăm', value: 'PERCENT' },
-                { label: 'Số tiền', value: 'FIXED' },
-              ]}
-              onChange={(v) => setQueryParams((prev) => ({ ...prev, type: v, pageIndex: 0 }))}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Select
-              placeholder="Trạng thái"
-              allowClear
-              style={{ width: '100%' }}
-              options={[
-                { label: 'Đang hoạt động', value: 'true' },
-                { label: 'Đã tắt', value: 'false' },
-              ]}
-              onChange={(v) => setQueryParams((prev) => ({
-                ...prev,
-                active: v !== undefined ? v === 'true' : undefined,
-                pageIndex: 0,
-              }))}
-            />
-          </Col>
-          <Col xs={24} sm={24} md={8} style={{ textAlign: 'right' }}>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Mã giảm giá">
+              <Input.Search
+                placeholder="Tìm mã giảm giá..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={(v) => setQueryParams((prev) => ({ ...prev, code: v || undefined, pageIndex: 0 }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Loại">
+              <Select
+                placeholder="Loại"
+                allowClear
+                style={{ width: '100%' }}
+                options={[
+                  { label: 'Phần trăm', value: 'PERCENT' },
+                  { label: 'Số tiền', value: 'FIXED' },
+                ]}
+                onChange={(v) => setQueryParams((prev) => ({ ...prev, type: v, pageIndex: 0 }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Trạng thái">
+              <Select
+                placeholder="Trạng thái"
+                allowClear
+                style={{ width: '100%' }}
+                options={[
+                  { label: 'Đang hoạt động', value: 'true' },
+                  { label: 'Đã tắt', value: 'false' },
+                ]}
+                onChange={(v) => setQueryParams((prev) => ({
+                  ...prev,
+                  active: v !== undefined ? v === 'true' : undefined,
+                  pageIndex: 0,
+                }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterActions>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -357,9 +372,9 @@ const DiscountListView: React.FC = () => {
             >
               Thêm mã giảm giá
             </Button>
-          </Col>
-        </Row>
-      </Card>
+          </ListFilterActions>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       {/* Table */}
       <AppTable

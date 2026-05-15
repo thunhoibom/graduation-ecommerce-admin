@@ -11,18 +11,14 @@ import {
   ShoppingCartOutlined,
   UndoOutlined,
   TeamOutlined,
+  UserOutlined,
+  SafetyCertificateOutlined,
   GiftOutlined,
   NodeIndexOutlined,
   GlobalOutlined,
-  PictureOutlined,
   InboxOutlined,
   ShopOutlined,
   AuditOutlined,
-  QrcodeOutlined,
-  CreditCardOutlined,
-  DollarCircleOutlined,
-  WarningOutlined,
-  FileDoneOutlined,
   ReadOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
@@ -90,6 +86,23 @@ const menuItems: MenuProps['items'] = [
     label: <Link href={paths.customers.list}>Khách hàng</Link>,
   },
   {
+    key: 'users',
+    icon: <UserOutlined />,
+    label: 'Người dùng',
+    children: [
+      {
+        key: paths.users.list,
+        icon: <UserOutlined />,
+        label: <Link href={paths.users.list}>Tài khoản</Link>,
+      },
+      {
+        key: paths.users.roles,
+        icon: <SafetyCertificateOutlined />,
+        label: <Link href={paths.users.roles}>Vai trò & quyền</Link>,
+      },
+    ],
+  },
+  {
     key: 'discounts',
     icon: <GiftOutlined />,
     label: 'Mã giảm giá',
@@ -102,7 +115,7 @@ const menuItems: MenuProps['items'] = [
       {
         key: paths.discounts.rules,
         icon: <NodeIndexOutlined />,
-        label: <Link href={paths.discounts.rules}>Rule khuyến mãi</Link>,
+        label: <Link href={paths.discounts.rules}>Quy tắc khuyến mãi</Link>,
       },
     ],
   },
@@ -110,11 +123,6 @@ const menuItems: MenuProps['items'] = [
     key: 'shipping',
     icon: <GlobalOutlined />,
     label: <Link href={paths.shipping.list}>Phương thức vận chuyển</Link>,
-  },
-  {
-    key: 'media',
-    icon: <PictureOutlined />,
-    label: <Link href={paths.media.list}>Thư viện media</Link>,
   },
   {
     key: 'inventory',
@@ -134,44 +142,12 @@ const menuItems: MenuProps['items'] = [
       {
         key: paths.inventory.purchaseOrders,
         icon: <ShoppingCartOutlined />,
-        label: <Link href={paths.inventory.purchaseOrders}>Purchase Orders</Link>,
-      },
-      {
-        key: paths.inventory.barcodeTools,
-        icon: <QrcodeOutlined />,
-        label: <Link href={paths.inventory.barcodeTools}>Mã vạch và quét</Link>,
+        label: <Link href={paths.inventory.purchaseOrders}>Đơn đặt hàng mua</Link>,
       },
       {
         key: paths.inventory.stockCounts,
         icon: <AuditOutlined />,
         label: <Link href={paths.inventory.stockCounts}>Kiểm kê định kỳ</Link>,
-      },
-    ],
-  },
-  {
-    key: 'finance',
-    icon: <DollarCircleOutlined />,
-    label: 'Tài chính & Đối soát',
-    children: [
-      {
-        key: paths.finance.failedPayments,
-        icon: <WarningOutlined />,
-        label: <Link href={paths.finance.failedPayments}>Đơn lỗi thanh toán</Link>,
-      },
-      {
-        key: paths.finance.refunds,
-        icon: <CreditCardOutlined />,
-        label: <Link href={paths.finance.refunds}>Hoàn tiền & Retry queue</Link>,
-      },
-      {
-        key: paths.finance.reconciliation,
-        icon: <FileDoneOutlined />,
-        label: <Link href={paths.finance.reconciliation}>Đối soát giao dịch</Link>,
-      },
-      {
-        key: paths.finance.settlements,
-        icon: <DollarCircleOutlined />,
-        label: <Link href={paths.finance.settlements}>Chốt số kỳ kế toán</Link>,
       },
     ],
   },

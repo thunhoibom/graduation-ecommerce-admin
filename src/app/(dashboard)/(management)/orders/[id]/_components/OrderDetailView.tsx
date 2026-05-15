@@ -4,7 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Tag, Button, Space,
-  Divider, Spin, Breadcrumb, Row, Col, message, Timeline,
+  Divider, Spin, Breadcrumb, Row, Col, message, Timeline, Alert,
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, CheckCircleOutlined,
@@ -29,14 +29,20 @@ import {
   type OrderPojo,
   type OrderDetailPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
+import { searchReturns } from '@/services/rest-api/app-api/returns/return-service'
 import {
   FULFILLMENT_STATUS_CONFIG,
   PAYMENT_STATUS_CONFIG,
   getAvailableOrderActions,
   normalizeFulfillmentStatus,
-  normalizePaymentStatus,
   type OrderStatusAction,
 } from '@/constants/order-status'
+import {
+  canCustomerRequestReturn,
+  getOrderRefundedAmount,
+  getOrderTotalAmount,
+  resolveOrderPaymentStatus,
+} from '@/lib/order-refund'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -95,6 +101,11 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     async () => getOrderShipmentTracking(orderId),
     { revalidateOnMount: true },
   )
+  const { data: returnRequestsPage } = useAxiosSWR(
+    [SWR_KEYS.RETURN_LIST, 'order', orderId],
+    async () => searchReturns({ orderId, pageIndex: 0, pageSize: 5 }),
+    { revalidateOnMount: true },
+  )
 
   const handleAction = async (
     action: OrderStatusAction,
@@ -138,6 +149,15 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
   const s = normalizeFulfillmentStatus(fulfillmentStatus)
   const cfg = FULFILLMENT_STATUS_CONFIG[s] ?? { color: 'default', label: fulfillmentStatus ?? s }
   const latestTracking = trackingHistory?.[0]
+  const returnRequests = returnRequestsPage?.items ?? []
+  const refundedAmount = getOrderRefundedAmount(order)
+  const orderTotalAmount = getOrderTotalAmount(order)
+  const resolvedPaymentStatus = resolveOrderPaymentStatus(order)
+  const paymentCfg = PAYMENT_STATUS_CONFIG[resolvedPaymentStatus] ?? {
+    color: 'default',
+    label: resolvedPaymentStatus,
+  }
+  const customerCanRequestReturn = canCustomerRequestReturn(order)
 
   const itemColumns: ColumnsType<OrderDetailPojo> = [
     {
@@ -242,7 +262,7 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
         </Button>
       )
     }
-    if (availableActions.includes('complete') || availableActions.includes('deliveryFailed')) {
+    if (availableActions.includes('complete') || availableActions.includes('deliveryCancelled')) {
       return (
         <Space>
           {availableActions.includes('complete') && (
@@ -252,11 +272,6 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
               onClick={() => handleAction('complete')}
             >
               Hoàn tất giao hàng
-            </Button>
-          )}
-          {availableActions.includes('deliveryFailed') && (
-            <Button danger icon={<CloseCircleOutlined />} onClick={() => handleAction('deliveryFailed')}>
-              Giao thất bại
             </Button>
           )}
           {availableActions.includes('deliveryCancelled') && (
@@ -269,9 +284,17 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
     }
     if (availableActions.includes('markReturned')) {
       return (
-        <Button icon={<SyncOutlined />} onClick={() => handleAction('markReturned')}>
-          Đánh dấu hoàn hàng
-        </Button>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="Cập nhật vận chuyển"
+            description="Chỉ dùng khi ĐVVC đã hoàn hàng về kho."
+          />
+          <Button icon={<SyncOutlined />} onClick={() => handleAction('markReturned')}>
+            Đánh dấu hoàn vận chuyển
+          </Button>
+        </Space>
       )
     }
     return (
@@ -460,6 +483,28 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
 
         {/* ── Right column ── */}
         <Col xs={24} lg={9}>
+          {returnRequests.length > 0 && (
+            <Card title="Yêu cầu trả hàng" style={{ marginBottom: 16 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {returnRequests.map((request) => {
+                  const requestId = request.id
+                  if (!requestId) return null
+                  return (
+                    <Button
+                      key={requestId}
+                      type="link"
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => router.push(`/returns/${requestId}`)}
+                    >
+                      #{requestId} · {request.status ?? '—'}
+                    </Button>
+                  )
+                })}
+              </Space>
+            </Card>
+          )}
+
+
           {/* Actions */}
           <Card style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 12 }}>
@@ -502,14 +547,25 @@ const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId }) => {
               </Descriptions.Item>
               <Descriptions.Item label="Số sản phẩm">{order.totalItems ?? order.details?.length ?? 0}</Descriptions.Item>
               <Descriptions.Item label="Thanh toán">
-                {(() => {
-                  const p = normalizePaymentStatus(order.paymentStatus)
-                  const pCfg = PAYMENT_STATUS_CONFIG[p] ?? { color: 'default', label: p }
-                  return <Tag color={pCfg.color}>{pCfg.label}</Tag>
-                })()}
+                <Tag color={paymentCfg.color}>{paymentCfg.label}</Tag>
                 <br />
-                <Text type="secondary" style={{ fontSize: 12 }}>{order.paymentType ?? order.paymentMethod ?? '—'}</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {order.paymentType ?? order.paymentMethod ?? '—'}
+                </Text>
               </Descriptions.Item>
+              {refundedAmount > 0 && (
+                <Descriptions.Item label="Đã hoàn">
+                  <Text strong style={{ color: '#cf1322' }}>{formatVND(refundedAmount)}</Text>
+                  {orderTotalAmount > 0 && refundedAmount < orderTotalAmount && (
+                    <>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Còn lại {formatVND(orderTotalAmount - refundedAmount)}
+                      </Text>
+                    </>
+                  )}
+                </Descriptions.Item>
+              )}
               {order.shipper && (
                 <Descriptions.Item label="Người giao hàng">{order.shipper}</Descriptions.Item>
               )}

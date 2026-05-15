@@ -123,28 +123,25 @@ const VariantManagementView: React.FC = () => {
 
   const barcode = product?.barcode
 
-  const { data: optionSetParams } = useAxiosSWR<{ data: ParamPojo[] }>(
+  const { data: optionSetParams } = useAxiosSWR<ParamPojo[]>(
     [SWR_KEYS.PARAMS_BY_CATEGORY, 'variant-option-sets'],
-    async () => {
-      const res = await getParamsByCategory('variant_option_set')
-      return { data: res.data ?? [] }
-    },
+    async () => getParamsByCategory('variant_option_set'),
     { revalidateOnMount: true },
   )
 
   const sizeOptions = useMemo(() => {
-    const params = optionSetParams?.data ?? []
+    const params = optionSetParams ?? []
     const sizeParam = params.find((item) => item.name?.toLowerCase() === 'size')
     const parsed = parseOptionList(sizeParam?.value)
     return parsed.length > 0 ? parsed : DEFAULT_SIZE_OPTIONS
-  }, [optionSetParams?.data])
+  }, [optionSetParams])
 
   const colorOptions = useMemo(() => {
-    const params = optionSetParams?.data ?? []
+    const params = optionSetParams ?? []
     const colorParam = params.find((item) => item.name?.toLowerCase() === 'color')
     const parsed = parseOptionList(colorParam?.value)
     return parsed.length > 0 ? parsed : DEFAULT_COLOR_OPTIONS
-  }, [optionSetParams?.data])
+  }, [optionSetParams])
 
   const { queryParams, setTableFetchingParams } = useTableFetchingParamsForVariants<DefaultVariantParams>({
     ...DEFAULT_VARIANT_PARAMS,
@@ -238,8 +235,8 @@ const VariantManagementView: React.FC = () => {
 
       dataIndex: 'sku',
       key: 'sku',
-      width: 150,
-      render: (sku: string) => <Text code style={{ fontSize: 12 }}>{sku}</Text>,
+      width: 200,
+      render: (sku: string) => <Text code>{sku}</Text>,
     },
     {
       title: 'Size',
@@ -272,7 +269,7 @@ const VariantManagementView: React.FC = () => {
       },
     },
     {
-      title: 'Modifier',
+      title: 'Giá điều chỉnh',
       dataIndex: 'priceModifier',
       key: 'priceModifier',
       width: 100,
@@ -725,7 +722,7 @@ const VariantManagementView: React.FC = () => {
           columns={columns}
           dataSource={variantData?.data ?? []}
           loading={isLoading}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1050 }}
           rowSelection={{
             selectedRowKeys: selectedVariantIds,
             onChange: (keys: React.Key[]) => setSelectedVariantIds(keys),
@@ -928,7 +925,7 @@ const VariantManagementView: React.FC = () => {
 
           <Row gutter={[12, 0]}>
             <Col span={12}>
-              <Form.Item name="priceModifier" label="Modifier giá">
+              <Form.Item name="priceModifier" label="Điều chỉnh giá (VND)">
                 <InputNumber style={{ width: '100%' }} />
               </Form.Item>
             </Col>

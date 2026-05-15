@@ -10,6 +10,8 @@ const theme: ThemeConfig = {
     colorInfo: palette.status.info,
     colorTextBase: palette.neutral.text,
     borderRadius: 6,
+    fontSize: 14,
+    fontSizeSM: 13,
     fontFamily:
       'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial',
   },
@@ -26,6 +28,14 @@ const theme: ThemeConfig = {
     Layout: {
       bodyBg: palette.background.layout,
       headerBg: palette.background.container,
+    },
+    Tag: {
+      fontSizeSM: 13,
+      lineHeightSM: 20,
+    },
+    Table: {
+      cellFontSize: 14,
+      cellFontSizeSM: 13,
     },
   },
 }

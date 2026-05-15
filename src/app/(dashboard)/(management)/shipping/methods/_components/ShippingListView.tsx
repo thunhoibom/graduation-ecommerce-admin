@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import {
-  Table, Card, Typography, Row, Col, Button, Input, Switch,
+  Table, Typography, Button, Input, Switch, Row, Col,
   Modal, Form, Space, message, Popconfirm, Tag,
 } from 'antd'
 import {
@@ -20,6 +20,14 @@ import {
   type ShippingSearchParams,
 } from '@/services/rest-api/app-api/shipping/shipping-service'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterActions,
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+} from '@/shared/components/list-filter'
 
 const { Title, Text } = Typography
 
@@ -281,17 +289,19 @@ const ShippingListView: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={12} md={10}>
-            <Input.Search
-              placeholder="Tìm tên phương thức..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={handleSearch}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={14} style={{ textAlign: 'right' }}>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Tên phương thức">
+              <Input.Search
+                placeholder="Tìm tên phương thức..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={handleSearch}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterActions>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -300,9 +310,9 @@ const ShippingListView: React.FC = () => {
             >
               Thêm phương thức
             </Button>
-          </Col>
-        </Row>
-      </Card>
+          </ListFilterActions>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       {/* Table */}
       <AppTable

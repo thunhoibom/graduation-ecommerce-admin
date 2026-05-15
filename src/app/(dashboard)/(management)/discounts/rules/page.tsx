@@ -6,7 +6,7 @@ const PromotionRulesView = dynamic(() => import('./_components/PromotionRulesVie
 })
 
 export const metadata: Metadata = {
-  title: 'Promotion Rules | Mono Studio Admin',
+  title: 'Quy tắc khuyến mãi | Mono Studio Admin',
 }
 
 export default function PromotionRulesPage() {

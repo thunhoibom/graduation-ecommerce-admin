@@ -54,7 +54,7 @@ const FACT_FIELD_OPTIONS = [
   { label: 'Tạm tính giỏ hàng', value: 'cart.subtotal' },
   { label: 'Số dòng sản phẩm trong giỏ', value: 'cart.line_count' },
   { label: 'Tổng số lượng sản phẩm', value: 'cart.total_units' },
-  { label: 'Giỏ có ít nhất một sản phẩm (barcode)', value: 'cart.has_any_product' },
+  { label: 'Giỏ có ít nhất một sản phẩm (mã vạch)', value: 'cart.has_any_product' },
   { label: 'Giỏ có ít nhất một danh mục', value: 'cart.has_any_category' },
   { label: 'Hạng thành viên', value: 'user.tier' },
   { label: 'Chi tiêu tháng của khách', value: 'user.monthly_spend' },
@@ -107,6 +107,26 @@ const CHECKOUT_FACT_FIELD_OPTIONS = FACT_FIELD_OPTIONS.filter(
 const CATALOG_OPERATOR_OPTIONS: { label: string; value: PromotionConditionOperator }[] = [
   { label: 'Thuộc danh sách', value: 'IN' },
 ]
+
+const SCOPE_LABELS = Object.fromEntries(
+  SCOPE_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<PromotionRuleScope, string>
+
+const ACTION_TYPE_LABELS = Object.fromEntries(
+  ACTION_TYPE_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<PromotionRuleActionType, string>
+
+const MODAL_KIND_LABELS = {
+  catalog: 'sản phẩm & danh mục',
+  checkout: 'giỏ hàng & vận chuyển',
+} as const
+
+const formatActionLabel = (actionType: PromotionRuleActionType, value: number) => {
+  const label = ACTION_TYPE_LABELS[actionType] ?? actionType
+  if (actionType === 'FREE_SHIPPING') return label
+  if (actionType === 'PERCENTAGE_DISCOUNT') return `${label}: ${value}%`
+  return `${label}: ${value}`
+}
 
 type RuleFormValues = {
   name: string
@@ -241,11 +261,11 @@ const PromotionRulesView: React.FC = () => {
       const hasFreeShipping = values.actions.some((a) => a.actionType === 'FREE_SHIPPING')
       const hasPriceDiscount = values.actions.some((a) => a.actionType !== 'FREE_SHIPPING')
       if ((values.scope === 'PRODUCT' || values.scope === 'CATEGORY') && hasFreeShipping) {
-        messageApi.error('Rule scope PRODUCT/CATEGORY không hỗ trợ FREE_SHIPPING')
+        messageApi.error('Phạm vi sản phẩm/danh mục không hỗ trợ miễn phí vận chuyển')
         return
       }
       if (values.scope === 'SHIPPING' && hasPriceDiscount) {
-        messageApi.error('Rule scope SHIPPING chỉ nên dùng FREE_SHIPPING')
+        messageApi.error('Phạm vi vận chuyển chỉ nên dùng hành động miễn phí vận chuyển')
         return
       }
       setSaving(true)
@@ -314,7 +334,7 @@ const PromotionRulesView: React.FC = () => {
       ),
     },
     {
-      title: 'Scope',
+      title: 'Phạm vi',
       dataIndex: 'scope',
       width: 120,
       align: 'center',
@@ -326,7 +346,7 @@ const PromotionRulesView: React.FC = () => {
             : safeScope === 'SHIPPING'
               ? 'cyan'
               : 'blue'
-        return <Tag color={color}>{safeScope}</Tag>
+        return <Tag color={color}>{SCOPE_LABELS[safeScope] ?? safeScope}</Tag>
       },
     },
     {
@@ -349,7 +369,7 @@ const PromotionRulesView: React.FC = () => {
         <Space wrap>
           {(row.actions ?? []).map((a, idx) => (
             <Tag key={`${row.id}-a-${idx}`} color={a.actionType === 'FREE_SHIPPING' ? 'cyan' : 'blue'}>
-              {a.actionType}:{a.value}
+              {formatActionLabel(a.actionType, a.value)}
             </Tag>
           ))}
         </Space>
@@ -418,10 +438,10 @@ const PromotionRulesView: React.FC = () => {
         </div>
         <Space>
           <Button icon={<PlusOutlined />} onClick={openCreateCatalog}>
-            Thêm rule Catalog
+            Thêm quy tắc sản phẩm & danh mục
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateCheckout}>
-            Thêm rule Checkout
+            Thêm quy tắc giỏ hàng & vận chuyển
           </Button>
         </Space>
       </div>
@@ -440,8 +460,8 @@ const PromotionRulesView: React.FC = () => {
       <Modal
         title={
           editingRuleId
-            ? `Chỉnh sửa quy tắc ${isCatalogModal ? 'Catalog' : 'Checkout'}`
-            : `Tạo quy tắc ${isCatalogModal ? 'Catalog' : 'Checkout'}`
+            ? `Chỉnh sửa quy tắc ${MODAL_KIND_LABELS[modalKind ?? 'checkout']}`
+            : `Tạo quy tắc ${MODAL_KIND_LABELS[modalKind ?? 'checkout']}`
         }
         open={modalKind !== null}
         onCancel={closeModal}
@@ -455,12 +475,12 @@ const PromotionRulesView: React.FC = () => {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="name" label="Tên quy tắc" rules={[{ required: true, message: 'Nhập tên quy tắc' }]}>
-                <Input placeholder="Giảm 10% cho Gold" />
+                <Input placeholder="Giảm 10% cho hạng Vàng" />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="scope" label="Scope" rules={[{ required: true, message: 'Chọn scope' }]}>
-                <Select options={scopeOptions} placeholder="Chọn scope" />
+              <Form.Item name="scope" label="Phạm vi" rules={[{ required: true, message: 'Chọn phạm vi' }]}>
+                <Select options={scopeOptions} placeholder="Chọn phạm vi" />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -502,11 +522,14 @@ const PromotionRulesView: React.FC = () => {
             <Form.List name="conditions">
               {(fields, { add, remove }) => (
                 <>
-                  {fields.map((field) => (
-                    <Row gutter={8} key={field.key} align="middle">
+                  {fields.map((field) => {
+                    const { key, ...fieldProps } = field
+
+                    return (
+                    <Row gutter={8} key={key} align="middle">
                       <Col span={8}>
                         <Form.Item
-                          {...field}
+                          {...fieldProps}
                           name={[field.name, 'factField']}
                           rules={[{ required: true }]}
                         >
@@ -515,7 +538,7 @@ const PromotionRulesView: React.FC = () => {
                       </Col>
                       <Col span={4}>
                         <Form.Item
-                          {...field}
+                          {...fieldProps}
                           name={[field.name, 'operator']}
                           rules={[{ required: true }]}
                         >
@@ -525,7 +548,7 @@ const PromotionRulesView: React.FC = () => {
                       <Col span={10}>
                         {conditions?.[field.name]?.factField === 'cart.has_any_category' ? (
                           <Form.Item
-                            {...field}
+                            {...fieldProps}
                             name={[field.name, 'targetValue']}
                             rules={[{ required: true, message: 'Chọn ít nhất 1 danh mục' }]}
                             getValueProps={(value) => {
@@ -553,7 +576,7 @@ const PromotionRulesView: React.FC = () => {
                           </Form.Item>
                         ) : conditions?.[field.name]?.factField === 'cart.has_any_product' ? (
                           <Form.Item
-                            {...field}
+                            {...fieldProps}
                             name={[field.name, 'targetValue']}
                             rules={[{ required: true, message: 'Chọn ít nhất 1 sản phẩm' }]}
                             getValueProps={(value) => {
@@ -581,7 +604,7 @@ const PromotionRulesView: React.FC = () => {
                           </Form.Item>
                         ) : (
                           <Form.Item
-                            {...field}
+                            {...fieldProps}
                             name={[field.name, 'targetValue']}
                             rules={[{ required: true }]}
                           >
@@ -598,9 +621,10 @@ const PromotionRulesView: React.FC = () => {
                         />
                       </Col>
                     </Row>
-                  ))}
+                    )
+                  })}
                   <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>
-                    Thêm Condition
+                    Thêm điều kiện
                   </Button>
                 </>
               )}
@@ -611,11 +635,14 @@ const PromotionRulesView: React.FC = () => {
             <Form.List name="actions">
               {(fields, { add, remove }) => (
                 <>
-                  {fields.map((field) => (
-                    <Row gutter={8} key={field.key} align="middle">
+                  {fields.map((field) => {
+                    const { key, ...fieldProps } = field
+
+                    return (
+                    <Row gutter={8} key={key} align="middle">
                       <Col span={10}>
                         <Form.Item
-                          {...field}
+                          {...fieldProps}
                           name={[field.name, 'actionType']}
                           rules={[{ required: true }]}
                         >
@@ -624,7 +651,7 @@ const PromotionRulesView: React.FC = () => {
                       </Col>
                       <Col span={10}>
                         <Form.Item
-                          {...field}
+                          {...fieldProps}
                           name={[field.name, 'value']}
                           rules={[{ required: true }]}
                         >
@@ -640,9 +667,10 @@ const PromotionRulesView: React.FC = () => {
                         />
                       </Col>
                     </Row>
-                  ))}
+                    )
+                  })}
                   <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>
-                    Thêm Action
+                    Thêm hành động
                   </Button>
                 </>
               )}

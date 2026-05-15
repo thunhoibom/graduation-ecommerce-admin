@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Breadcrumb, Button, Card, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message, Alert, Switch } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import { SWR_KEYS } from '@/constants/swrKeys'
@@ -21,8 +22,21 @@ import {
 import { searchVariants, type ProductVariantPojo } from '@/services/rest-api/app-api/products/product-service'
 import { useBarcodeScanner } from '@/shared/hooks/useBarcodeScanner'
 import { playSuccessBeep, playErrorBuzzer } from '@/shared/utils/soundUtils'
+import { exportPurchaseOrderList } from './purchase-order-list-export'
 
 const { Title, Text } = Typography
+
+const formatVND = (value: number | undefined) => {
+  if (value === undefined || value === null) return '—'
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+const getLineTotalAmount = (line: PurchaseOrderPojo['lines'][number]) =>
+  line.lineTotalAmount ?? (line.unitCost != null ? line.orderedQty * line.unitCost : undefined)
 
 const statusColor: Record<string, string> = {
   DRAFT: 'default',
@@ -33,6 +47,17 @@ const statusColor: Record<string, string> = {
   CANCELLED: 'red',
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: 'Nháp',
+  SUBMITTED: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  PARTIALLY_RECEIVED: 'Nhập một phần',
+  RECEIVED: 'Đã nhận đủ',
+  CANCELLED: 'Đã hủy',
+}
+
+const STATUS_OPTIONS = Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))
+
 export default function PurchaseOrdersPage() {
   const [messageApi, contextHolder] = message.useMessage()
   const [statusFilter, setStatusFilter] = useState<string>()
@@ -40,6 +65,7 @@ export default function PurchaseOrdersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   
@@ -83,6 +109,24 @@ export default function PurchaseOrdersPage() {
     mutate()
     mutateDetail()
   }
+
+  const handleExport = useCallback(async () => {
+    if (exporting) return
+
+    setExporting(true)
+    try {
+      const exportedCount = await exportPurchaseOrderList(statusFilter)
+      if (exportedCount === 0) {
+        messageApi.warning('Không có đơn đặt hàng nào để xuất')
+        return
+      }
+      messageApi.success(`Đã xuất ${exportedCount} đơn đặt hàng`)
+    } catch {
+      messageApi.error('Xuất Excel thất bại')
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, messageApi, statusFilter])
 
   useBarcodeScanner({
     isActive: receiveOpen && isScanning,
@@ -135,12 +179,12 @@ export default function PurchaseOrdersPage() {
     setSubmitting(true)
     try {
       await createPurchaseOrder(values)
-      messageApi.success('Đã tạo Purchase Order')
+      messageApi.success('Đã tạo đơn đặt hàng')
       setCreateOpen(false)
       createForm.resetFields()
       mutate()
     } catch (e) {
-      messageApi.error((e as Error)?.message || 'Không thể tạo PO')
+      messageApi.error((e as Error)?.message || 'Không thể tạo đơn đặt hàng')
     } finally {
       setSubmitting(false)
     }
@@ -163,12 +207,25 @@ export default function PurchaseOrdersPage() {
   }
 
   const columns: ColumnsType<PurchaseOrderPojo> = [
-    { title: 'Mã PO', dataIndex: 'code', width: 180, render: (v) => <Text code>{v}</Text> },
+    { title: 'Mã PO', dataIndex: 'code', width: 280, render: (v) => <Text code>{v}</Text> },
     { title: 'Nhà cung cấp', dataIndex: 'supplierName' },
-    { title: 'Trạng thái', dataIndex: 'status', width: 170, render: (s) => <Tag color={statusColor[s] ?? 'default'}>{s}</Tag> },
+    { title: 'Trạng thái', dataIndex: 'status', width: 170, render: (s) => <Tag color={statusColor[s] ?? 'default'}>{STATUS_LABEL[s] ?? s}</Tag> },
+    { title: 'Số dòng', dataIndex: 'lineCount', width: 90, align: 'right', render: (v) => v ?? '—' },
+    {
+      title: 'Tổng giá trị đặt',
+      dataIndex: 'orderedTotalAmount',
+      width: 150,
+      align: 'right',
+      render: (v) => <Text strong>{formatVND(v)}</Text>,
+    },
+    {
+      title: 'Giá trị đã nhập',
+      dataIndex: 'receivedTotalAmount',
+      width: 150,
+      align: 'right',
+      render: (v) => formatVND(v),
+    },
     { title: 'Ngày tạo', dataIndex: 'createdAt', width: 180, render: (v) => (v ? new Date(v).toLocaleString('vi-VN') : '-') },
-    { title: 'Kho', dataIndex: 'warehouseId', width: 100 },
-    { title: 'Vị trí', dataIndex: 'locationCode', width: 120 },
     {
       title: 'Thao tác',
       width: 140,
@@ -180,8 +237,8 @@ export default function PurchaseOrdersPage() {
     <>
       {contextHolder}
       <div style={{ marginBottom: 24 }}>
-        <Breadcrumb items={[{ title: 'Quản lý' }, { title: 'Tồn kho' }, { title: 'Purchase Orders' }]} />
-        <Title level={3} style={{ margin: '8px 0 0' }}>Purchase Orders</Title>
+        <Breadcrumb items={[{ title: 'Quản lý' }, { title: 'Tồn kho' }, { title: 'Đơn đặt hàng mua' }]} />
+        <Title level={3} style={{ margin: '8px 0 0' }}>Đơn đặt hàng mua</Title>
       </div>
 
       <Card
@@ -191,26 +248,40 @@ export default function PurchaseOrdersPage() {
               allowClear
               placeholder="Lọc trạng thái"
               style={{ width: 220 }}
-              options={['DRAFT', 'SUBMITTED', 'APPROVED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'].map((s) => ({ label: s, value: s }))}
+              options={STATUS_OPTIONS}
               onChange={setStatusFilter}
             />
-            <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo PO</Button>
+            <Button
+              icon={<DownloadOutlined />}
+              loading={exporting}
+              onClick={handleExport}
+            >
+              Xuất Excel
+            </Button>
+            <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo đơn</Button>
           </Space>
         }
       >
-        <Table rowKey="id" loading={isLoading} columns={columns} dataSource={data ?? []} pagination={{ pageSize: 10 }} />
+        <Table
+          rowKey="id"
+          loading={isLoading}
+          columns={columns}
+          dataSource={data ?? []}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1200 }}
+        />
       </Card>
 
       <Drawer
-        title={detail ? `PO ${detail.code}` : 'Chi tiết PO'}
+        title={detail ? `Chi tiết ${detail.code}` : 'Chi tiết đơn đặt hàng'}
         width={840}
         open={!!selectedId}
         onClose={() => setSelectedId(undefined)}
         extra={
           detail && (
             <Space>
-              {detail.status === 'DRAFT' && <Button onClick={() => runAction(() => submitPurchaseOrder(detail.id, {}), 'Đã submit PO')}>Submit</Button>}
-              {detail.status === 'SUBMITTED' && <Button onClick={() => runAction(() => approvePurchaseOrder(detail.id, {}), 'Đã approve PO')}>Approve</Button>}
+              {detail.status === 'DRAFT' && <Button onClick={() => runAction(() => submitPurchaseOrder(detail.id, {}), 'Đã gửi duyệt')}>Gửi duyệt</Button>}
+              {detail.status === 'SUBMITTED' && <Button onClick={() => runAction(() => approvePurchaseOrder(detail.id, {}), 'Đã duyệt đơn')}>Duyệt</Button>}
               {(detail.status === 'APPROVED' || detail.status === 'PARTIALLY_RECEIVED') && (
                 <Button type="primary" onClick={() => {
                   receiveForm.setFieldsValue({
@@ -231,8 +302,11 @@ export default function PurchaseOrdersPage() {
         <Space direction="vertical" style={{ width: '100%' }} size={16}>
           <Card size="small">
             <Text>Nhà cung cấp: <Text strong>{detail?.supplierName}</Text></Text><br />
-            <Text>Trạng thái: <Tag color={statusColor[detail?.status ?? ''] ?? 'default'}>{detail?.status}</Tag></Text><br />
+            <Text>Trạng thái: <Tag color={statusColor[detail?.status ?? ''] ?? 'default'}>{STATUS_LABEL[detail?.status ?? ''] ?? detail?.status}</Tag></Text><br />
             <Text>Kho/Vị trí: {detail?.warehouseId} / {detail?.locationCode}</Text><br />
+            <Text>Số dòng: {detail?.lineCount ?? detail?.lines?.length ?? '—'}</Text><br />
+            <Text>Tổng giá trị đặt: <Text strong>{formatVND(detail?.orderedTotalAmount)}</Text></Text><br />
+            <Text>Giá trị đã nhập: {formatVND(detail?.receivedTotalAmount)}</Text><br />
             <Text>Ghi chú: {detail?.note || '-'}</Text>
           </Card>
           <Table
@@ -240,18 +314,31 @@ export default function PurchaseOrdersPage() {
             dataSource={detail?.lines ?? []}
             pagination={false}
             columns={[
-              { title: 'SKU', dataIndex: 'variantSku', width: 160, render: (v) => <Text code>{v}</Text> },
+              { title: 'SKU', dataIndex: 'variantSku', width: 200, render: (v) => <Text code>{v}</Text> },
               { title: 'Sản phẩm', dataIndex: 'productName' },
-              { title: 'Ordered', dataIndex: 'orderedQty', width: 90, align: 'right' },
-              { title: 'Received', dataIndex: 'receivedQty', width: 90, align: 'right' },
-              { title: 'Unit Cost', dataIndex: 'unitCost', width: 100, align: 'right' },
+              { title: 'SL đặt', dataIndex: 'orderedQty', width: 90, align: 'right' },
+              { title: 'SL nhập', dataIndex: 'receivedQty', width: 90, align: 'right' },
+              {
+                title: 'Đơn giá',
+                dataIndex: 'unitCost',
+                width: 120,
+                align: 'right',
+                render: (v) => formatVND(v),
+              },
+              {
+                title: 'Thành tiền',
+                key: 'lineTotalAmount',
+                width: 130,
+                align: 'right',
+                render: (_, line) => formatVND(getLineTotalAmount(line)),
+              },
             ]}
           />
         </Space>
       </Drawer>
 
       <Modal
-        title="Tạo Purchase Order"
+        title="Tạo đơn đặt hàng"
         open={createOpen}
         onCancel={() => setCreateOpen(false)}
         onOk={() => createForm.submit()}
@@ -264,20 +351,20 @@ export default function PurchaseOrdersPage() {
           </Form.Item>
           <Space style={{ width: '100%' }}>
             <Form.Item name="warehouseId" label="Kho"><Input /></Form.Item>
-            <Form.Item name="locationCode" label="Location"><Input /></Form.Item>
+            <Form.Item name="locationCode" label="Vị trí kho"><Input /></Form.Item>
           </Space>
           <Form.List name="lines">
             {(fields, { add, remove }) => (
               <Space direction="vertical" style={{ width: '100%' }}>
                 {fields.map((field) => (
                   <Space key={field.key} align="start">
-                    <Form.Item name={[field.name, 'variantId']} label="SKU" rules={[{ required: true }]}>
+                    <Form.Item name={[field.name, 'variantId']} label="Biến thể / SKU" rules={[{ required: true }]}>
                       <Select showSearch style={{ width: 350 }} options={variantOptions} />
                     </Form.Item>
-                    <Form.Item name={[field.name, 'orderedQty']} label="Qty" rules={[{ required: true }]}>
+                    <Form.Item name={[field.name, 'orderedQty']} label="Số lượng đặt" rules={[{ required: true }]}>
                       <InputNumber min={1} />
                     </Form.Item>
-                    <Form.Item name={[field.name, 'unitCost']} label="Unit cost">
+                    <Form.Item name={[field.name, 'unitCost']} label="Đơn giá">
                       <InputNumber min={0} />
                     </Form.Item>
                     <Button danger onClick={() => remove(field.name)}>Xóa</Button>
@@ -293,7 +380,7 @@ export default function PurchaseOrdersPage() {
       <Modal
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 24 }}>
-            <span>Nhập kho theo PO</span>
+            <span>Nhập kho theo đơn đặt hàng</span>
             <Space>
               <Text style={{ fontSize: 14, fontWeight: 'normal' }}>Chế độ quét:</Text>
               <Switch checked={isScanning} onChange={setIsScanning} />
@@ -328,7 +415,7 @@ export default function PurchaseOrdersPage() {
               <Space direction="vertical" style={{ width: '100%' }}>
                 {fields.map((field) => (
                   <Space key={field.key}>
-                    <Form.Item name={[field.name, 'purchaseOrderLineId']} label="Line ID">
+                    <Form.Item name={[field.name, 'purchaseOrderLineId']} label="Mã dòng">
                       <InputNumber disabled />
                     </Form.Item>
                     <Form.Item name={[field.name, 'receivedQty']} label="Số lượng nhập" rules={[{ required: true }]}>

@@ -33,6 +33,31 @@ import {
 
 const { Title, Text } = Typography
 
+const SYSTEM_REASON_LABEL: Record<string, string> = {
+  RESERVATION_CREATED: 'Giữ chỗ trong giỏ',
+  RESERVATION_RELEASED: 'Huỷ giữ chỗ',
+  PAYMENT_CONFIRMED: 'Thanh toán thành công',
+  PAYMENT_ABORTED: 'Huỷ thanh toán',
+  RETURN_RESTORED: 'Hoàn hàng về kho',
+  MANUAL_ADJUSTMENT: 'Điều chỉnh thủ công',
+  STOCK_RECOUNT: 'Kiểm kê tồn',
+  ORDER_CANCELLED: 'Huỷ đơn hàng',
+  ORDER_REJECTED: 'Từ chối đơn hàng',
+  PURCHASE_ORDER_RECEIPT: 'Nhập kho theo đơn mua',
+  TRANSFER_OUTBOUND: 'Chuyển kho đi',
+  TRANSFER_INBOUND: 'Chuyển kho đến',
+  STOCK_COUNT_VARIANCE: 'Chênh lệch kiểm kê',
+}
+
+const formatSystemReason = (reason?: string) =>
+  reason ? (SYSTEM_REASON_LABEL[reason] ?? reason) : '—'
+
+const movementOptions = [
+  { label: 'Nhập kho', value: 'INBOUND' },
+  { label: 'Xuất kho', value: 'OUTBOUND' },
+  { label: 'Điều chỉnh tồn', value: 'ADJUSTMENT' },
+] as const
+
 type AdjustmentFormValues = {
   variantId: number
   type: AdjustmentType
@@ -41,12 +66,6 @@ type AdjustmentFormValues = {
   reason: string
   description?: string
 }
-
-const movementOptions = [
-  { label: 'Nhập kho (INBOUND)', value: 'INBOUND' },
-  { label: 'Xuất kho (OUTBOUND)', value: 'OUTBOUND' },
-  { label: 'Điều chỉnh về tồn mục tiêu (ADJUSTMENT)', value: 'ADJUSTMENT' },
-] as const
 
 export default function StockAdjustmentsPage() {
   const [messageApi, contextHolder] = message.useMessage()
@@ -72,7 +91,7 @@ export default function StockAdjustmentsPage() {
   const variantOptions = useMemo(
     () =>
       variants.map((variant) => ({
-        label: `${variant.sku} · ${variant.productName ?? 'N/A'} · Tồn: ${variant.onHand ?? variant.currentStock ?? 0}`,
+        label: `${variant.sku} · ${variant.productName ?? 'Chưa rõ'} · Tồn: ${variant.onHand ?? variant.currentStock ?? 0}`,
         value: variant.id!,
         sku: variant.sku,
       })),
@@ -149,10 +168,10 @@ export default function StockAdjustmentsPage() {
       dataIndex: 'reason',
       key: 'reason',
       width: 150,
-      render: (reason: string) => <Tag>{reason}</Tag>,
+      render: (reason: string) => <Tag>{formatSystemReason(reason)}</Tag>,
     },
     {
-      title: 'Delta',
+      title: 'Biến động',
       dataIndex: 'quantityDelta',
       key: 'quantityDelta',
       width: 90,
@@ -164,14 +183,14 @@ export default function StockAdjustmentsPage() {
       ),
     },
     {
-      title: 'Before',
+      title: 'Trước',
       dataIndex: 'stockBefore',
       key: 'stockBefore',
       width: 90,
       align: 'right',
     },
     {
-      title: 'After',
+      title: 'Sau',
       dataIndex: 'stockAfter',
       key: 'stockAfter',
       width: 90,
@@ -223,7 +242,7 @@ export default function StockAdjustmentsPage() {
 
   const reasonOptions = useMemo(() => {
     const reasons = new Set((ledgerResponse?.items ?? []).map((item) => item.reason).filter(Boolean))
-    return Array.from(reasons).map((reason) => ({ label: reason, value: reason }))
+    return Array.from(reasons).map((reason) => ({ label: formatSystemReason(reason), value: reason }))
   }, [ledgerResponse?.items])
 
   const ledgerRows = useMemo(() => {
@@ -265,7 +284,7 @@ export default function StockAdjustmentsPage() {
       align: 'right',
     },
     {
-      title: 'Critical',
+      title: 'Ngưỡng cảnh báo',
       dataIndex: 'criticalStock',
       key: 'criticalStock',
       width: 90,
@@ -297,107 +316,121 @@ export default function StockAdjustmentsPage() {
     <>
       {contextHolder}
       <div style={{ marginBottom: 24 }}>
-        <Breadcrumb items={[{ title: 'Quản lý' }, { title: 'Tồn kho thực chiến' }]} />
+        <Breadcrumb items={[{ title: 'Quản lý' }, { title: 'Tồn kho' }, { title: 'Điều chỉnh tồn' }]} />
         <Title level={3} style={{ margin: '8px 0 0' }}>
-          Tồn kho thực chiến
+          Điều chỉnh tồn kho
         </Title>
         <Text type="secondary">
-          Nhập/xuất/điều chỉnh có lý do bắt buộc, timeline theo SKU, và đề xuất restock theo lịch sử bán.
+          Nhập, xuất hoặc điều chỉnh tồn có lý do bắt buộc; xem lịch sử biến động theo SKU và đề xuất nhập bổ sung theo lịch sử bán.
         </Text>
       </div>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>
           <Card size="small">
-            <Text type="secondary">On-hand</Text>
+            <Text type="secondary">Tồn thực tế</Text>
             <Title level={4} style={{ margin: 0 }}>{kpi.onHand}</Title>
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Text type="secondary">Reserved</Text>
+            <Text type="secondary">Đang giữ</Text>
             <Title level={4} style={{ margin: 0, color: '#fa8c16' }}>{kpi.reserved}</Title>
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Text type="secondary">Available to sell</Text>
+            <Text type="secondary">Có thể bán</Text>
             <Title level={4} style={{ margin: 0, color: '#389e0d' }}>{kpi.available}</Title>
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Text type="secondary">SKU low-stock</Text>
+            <Text type="secondary">SKU sắp hết</Text>
             <Title level={4} style={{ margin: 0, color: '#cf1322' }}>{kpi.lowStockSkus}</Title>
           </Card>
         </Col>
       </Row>
 
       <Row gutter={16}>
-        <Col span={10}>
-          <Card title="Tạo phiếu điều chỉnh">
+        <Col xs={24} lg={8} xl={7}>
+          <Card title="Tạo phiếu điều chỉnh" size="small">
             <Alert
               type="info"
               showIcon
-              style={{ marginBottom: 16 }}
-              message="Lý do là bắt buộc để truy vết audit."
+              style={{ marginBottom: 12, padding: '6px 10px' }}
+              message="Lý do là bắt buộc để truy vết lịch sử."
             />
             <Form<AdjustmentFormValues>
               form={form}
               layout="vertical"
+              size="small"
               onFinish={onSubmit}
               initialValues={{ type: 'INBOUND' }}
+              requiredMark={false}
             >
-              <Form.Item name="variantId" label="Biến thể (SKU)" rules={[{ required: true, message: 'Chọn biến thể' }]}>
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={variantOptions}
-                  placeholder="Chọn SKU"
-                  onChange={(variantId: number) => {
-                    const selected = variantOptions.find((item) => item.value === variantId)
-                    setSelectedSku(selected?.sku)
-                  }}
-                />
-              </Form.Item>
-              <Form.Item name="type" label="Loại nghiệp vụ" rules={[{ required: true, message: 'Chọn loại nghiệp vụ' }]}>
-                <Select options={movementOptions as any} />
-              </Form.Item>
-
-              {adjustmentType === 'ADJUSTMENT' ? (
-                <Form.Item
-                  name="targetStock"
-                  label="Tồn mục tiêu"
-                  rules={[{ required: true, message: 'Nhập tồn mục tiêu' }]}
-                >
-                  <InputNumber min={0} style={{ width: '100%' }} />
-                </Form.Item>
-              ) : (
-                <Form.Item
-                  name="quantity"
-                  label="Số lượng"
-                  rules={[{ required: true, message: 'Nhập số lượng' }]}
-                >
-                  <InputNumber min={1} style={{ width: '100%' }} />
-                </Form.Item>
-              )}
-
-              <Form.Item name="reason" label="Lý do bắt buộc" rules={[{ required: true, message: 'Nhập lý do' }]}>
-                <Input placeholder="VD: Bù thiếu kiểm kho đầu ca" />
-              </Form.Item>
-              <Form.Item name="description" label="Ghi chú thêm">
-                <Input.TextArea rows={3} />
-              </Form.Item>
-              <Button type="primary" htmlType="submit" loading={submitting}>
+              <Row gutter={8}>
+                <Col span={24}>
+                  <Form.Item name="variantId" label="Biến thể (SKU)" rules={[{ required: true, message: 'Chọn biến thể' }]} style={{ marginBottom: 12 }}>
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={variantOptions}
+                      placeholder="Chọn SKU"
+                      onChange={(variantId: number) => {
+                        const selected = variantOptions.find((item) => item.value === variantId)
+                        setSelectedSku(selected?.sku)
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="type" label="Loại nghiệp vụ" rules={[{ required: true, message: 'Chọn loại nghiệp vụ' }]} style={{ marginBottom: 12 }}>
+                    <Select options={movementOptions as any} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  {adjustmentType === 'ADJUSTMENT' ? (
+                    <Form.Item
+                      name="targetStock"
+                      label="Tồn mục tiêu"
+                      rules={[{ required: true, message: 'Nhập tồn mục tiêu' }]}
+                      style={{ marginBottom: 12 }}
+                    >
+                      <InputNumber min={0} style={{ width: '100%' }} />
+                    </Form.Item>
+                  ) : (
+                    <Form.Item
+                      name="quantity"
+                      label="Số lượng"
+                      rules={[{ required: true, message: 'Nhập số lượng' }]}
+                      style={{ marginBottom: 12 }}
+                    >
+                      <InputNumber min={1} style={{ width: '100%' }} />
+                    </Form.Item>
+                  )}
+                </Col>
+                <Col span={24}>
+                  <Form.Item name="reason" label="Lý do bắt buộc" rules={[{ required: true, message: 'Nhập lý do' }]} style={{ marginBottom: 12 }}>
+                    <Input placeholder="VD: Bù thiếu kiểm kho đầu ca" />
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item name="description" label="Ghi chú thêm" style={{ marginBottom: 12 }}>
+                    <Input.TextArea rows={2} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Button type="primary" htmlType="submit" loading={submitting} block>
                 Xác nhận điều chỉnh
               </Button>
             </Form>
           </Card>
         </Col>
 
-        <Col span={14}>
+        <Col xs={24} lg={16} xl={17}>
           <Card
-            title="Inventory Ledger (lịch sử biến động)"
+            title="Sổ biến động tồn kho"
             extra={
               <Space>
                 <Select
@@ -427,7 +460,7 @@ export default function StockAdjustmentsPage() {
                 <Select
                   allowClear
                   style={{ width: 180 }}
-                  placeholder="Lọc theo reason"
+                  placeholder="Lọc theo lý do hệ thống"
                   options={reasonOptions}
                   value={ledgerReason}
                   onChange={(value) => setLedgerReason(value)}
@@ -437,7 +470,7 @@ export default function StockAdjustmentsPage() {
                   value={ledgerLowStockOnly ? 'LOW_ONLY' : 'ALL'}
                   options={[
                     { label: 'Tất cả trạng thái', value: 'ALL' },
-                    { label: 'Chỉ low-stock', value: 'LOW_ONLY' },
+                    { label: 'Chỉ SKU sắp hết', value: 'LOW_ONLY' },
                   ]}
                   onChange={(value) => setLedgerLowStockOnly(value === 'LOW_ONLY')}
                 />
@@ -458,13 +491,13 @@ export default function StockAdjustmentsPage() {
       </Row>
 
       <Card
-        title="Low-stock + đề xuất restock"
+        title="SKU sắp hết và đề xuất nhập bổ sung"
         style={{ marginTop: 16 }}
         extra={
           <Space>
-            <Text type="secondary">Lookback</Text>
+            <Text type="secondary">Kỳ xem bán (ngày)</Text>
             <InputNumber min={7} max={120} value={lookbackDays} onChange={(v) => setLookbackDays(Number(v ?? 30))} />
-            <Text type="secondary">Lead time</Text>
+            <Text type="secondary">Thời gian giao hàng (ngày)</Text>
             <InputNumber min={1} max={60} value={leadTimeDays} onChange={(v) => setLeadTimeDays(Number(v ?? 14))} />
             <Button onClick={() => mutateRestock()}>Làm mới</Button>
           </Space>

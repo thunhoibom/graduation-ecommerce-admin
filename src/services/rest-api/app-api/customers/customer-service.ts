@@ -56,7 +56,6 @@ export type CustomerPojo = {
   // Enriched fields from joined entities
   addresses?: AddressPojo[]
   orders?: CustomerOrderPojo[]
-  orderCount?: number
   totalSpent?: number
   createdAt?: string
   lastModified?: string

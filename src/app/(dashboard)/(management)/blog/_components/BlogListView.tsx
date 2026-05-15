@@ -2,14 +2,26 @@
 
 import React, { useMemo, useState } from 'react'
 import {
-  Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message,
+  Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Upload, message,
 } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
+import type { UploadFile, UploadProps } from 'antd/es/upload'
 import type { ColumnsType } from 'antd/es/table'
 import {
   createBlogPost, deleteBlogPost, patchBlogPost, searchBlogPosts, type BlogPostPojo, type BlogStatus, updateBlogPost,
 } from '@/services/rest-api/app-api/blog/blog-service'
+import { uploadImage, type ImagePojo } from '@/services/rest-api/app-api/media/media-service'
 import { useAxiosSWR } from '@/shared/hooks/use-axios-swr'
 import QuillEditor from '@/shared/components/QuillEditor'
+import {
+  ListFilterActions,
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+  LIST_FILTER_SELECT_FLEX,
+} from '@/shared/components/list-filter'
 
 const { Title, Text } = Typography
 const statusOptions: BlogStatus[] = ['DRAFT', 'PUBLISHED', 'ARCHIVED']
@@ -41,6 +53,18 @@ const normalizePublishedAtForApi = (value?: string) => {
   return normalized
 }
 
+const buildThumbnailFileList = (url?: string): UploadFile[] => {
+  const trimmed = url?.trim()
+  if (!trimmed) return []
+
+  return [{
+    uid: trimmed,
+    name: trimmed.split('/').pop() ?? 'thumbnail',
+    status: 'done',
+    url: trimmed,
+  }]
+}
+
 export default function BlogListView() {
   const [msg, ctx] = message.useMessage()
   const [query, setQuery] = useState('')
@@ -50,6 +74,7 @@ export default function BlogListView() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<BlogPostPojo | null>(null)
+  const [thumbnailFileList, setThumbnailFileList] = useState<UploadFile[]>([])
   const [form] = Form.useForm<BlogPostPojo>()
 
   const fetchKey = useMemo(() => ['blog/list', query, status, pageIndex, pageSize], [query, status, pageIndex, pageSize])
@@ -67,6 +92,7 @@ export default function BlogListView() {
     setEditing(null)
     form.resetFields()
     form.setFieldsValue({ status: 'DRAFT' })
+    setThumbnailFileList([])
     setOpen(true)
   }
 
@@ -76,7 +102,34 @@ export default function BlogListView() {
       ...post,
       publishedAt: toInputDateTime(post.publishedAt),
     })
+    setThumbnailFileList(buildThumbnailFileList(post.thumbnailUrl))
     setOpen(true)
+  }
+
+  const handleThumbnailUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options
+    try {
+      const result = await uploadImage(file as File)
+      onSuccess?.(result)
+    } catch (error) {
+      onError?.(error as Error)
+      msg.error('Upload thumbnail thất bại')
+    }
+  }
+
+  const handleThumbnailChange: UploadProps['onChange'] = ({ fileList: nextFileList }) => {
+    setThumbnailFileList(nextFileList)
+
+    const uploaded = nextFileList.find((file) => file.status === 'done')
+    const uploadedUrl = (uploaded?.response as ImagePojo | undefined)?.url ?? uploaded?.url
+    if (uploadedUrl) {
+      form.setFieldsValue({ thumbnailUrl: uploadedUrl })
+      return
+    }
+
+    if (nextFileList.length === 0) {
+      form.setFieldsValue({ thumbnailUrl: undefined })
+    }
   }
 
   const onSubmit = async () => {
@@ -84,6 +137,12 @@ export default function BlogListView() {
       const values = await form.validateFields()
       const payload: BlogPostPojo = { ...values }
       payload.publishedAt = normalizePublishedAtForApi(payload.publishedAt)
+
+      const uploadedThumbnail = thumbnailFileList.find((file) => file.status === 'done')
+      const thumbnailUrl = (uploadedThumbnail?.response as ImagePojo | undefined)?.url
+        ?? uploadedThumbnail?.url
+        ?? payload.thumbnailUrl
+      payload.thumbnailUrl = thumbnailUrl?.trim() || undefined
 
       if (payload.status === 'PUBLISHED' && !payload.publishedAt) {
         payload.publishedAt = nowLocalDateTimeSeconds()
@@ -98,6 +157,7 @@ export default function BlogListView() {
         msg.success('Tạo bài viết thành công')
       }
       setOpen(false)
+      setThumbnailFileList([])
       mutate()
     } catch {
       msg.error('Không thể lưu bài viết')
@@ -108,6 +168,14 @@ export default function BlogListView() {
 
   const columns: ColumnsType<BlogPostPojo> = [
     { title: 'ID', dataIndex: 'id', width: 80, render: (v: number) => <Text code>#{v}</Text> },
+    {
+      title: 'Thumbnail',
+      dataIndex: 'thumbnailUrl',
+      width: 88,
+      render: (value?: string) => value
+        ? <img src={value} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+        : '—',
+    },
     { title: 'Tiêu đề', dataIndex: 'title', ellipsis: true },
     { title: 'Slug', dataIndex: 'slug', ellipsis: true },
     {
@@ -149,25 +217,34 @@ export default function BlogListView() {
         <Text type="secondary">CRUD, publish và tìm kiếm bài viết</Text>
       </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Input.Search
-            allowClear
-            placeholder="Tìm theo tiêu đề"
-            onSearch={(v) => { setQuery(v.trim()); setPageIndex(0) }}
-            style={{ width: 280 }}
-          />
-          <Select
-            allowClear
-            placeholder="Trạng thái"
-            style={{ width: 160 }}
-            value={status}
-            onChange={(v) => { setStatus(v); setPageIndex(0) }}
-            options={statusOptions.map((s) => ({ label: s, value: s }))}
-          />
-          <Button type="primary" onClick={onCreate}>Tạo bài viết</Button>
-        </Space>
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Tiêu đề">
+              <Input.Search
+                allowClear
+                placeholder="Tìm theo tiêu đề"
+                onSearch={(v) => { setQuery(v.trim()); setPageIndex(0) }}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Trạng thái">
+              <Select
+                allowClear
+                placeholder="Trạng thái"
+                style={{ width: '100%' }}
+                value={status}
+                onChange={(v) => { setStatus(v); setPageIndex(0) }}
+                options={statusOptions.map((s) => ({ label: s, value: s }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterActions>
+            <Button type="primary" onClick={onCreate}>Tạo bài viết</Button>
+          </ListFilterActions>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       <Table
         rowKey={(r) => String(r.id)}
@@ -185,7 +262,10 @@ export default function BlogListView() {
 
       <Modal
         open={open}
-        onCancel={() => setOpen(false)}
+        onCancel={() => {
+          setOpen(false)
+          setThumbnailFileList([])
+        }}
         onOk={onSubmit}
         confirmLoading={saving}
         width={860}
@@ -201,9 +281,35 @@ export default function BlogListView() {
           <Form.Item name="summary" label="Mô tả ngắn">
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Form.Item name="thumbnailUrl" label="Thumbnail URL (Media)">
-            <Input placeholder="Dán URL ảnh từ media library" />
+          <Form.Item label="Thumbnail">
+            <Upload
+              listType="picture-card"
+              fileList={thumbnailFileList}
+              customRequest={handleThumbnailUpload}
+              onChange={handleThumbnailChange}
+              maxCount={1}
+              accept="image/*"
+            >
+              {thumbnailFileList.length >= 1 ? null : (
+                <div>
+                  <PlusOutlined />
+                  <div style={{ marginTop: 8 }}>Tải ảnh lên</div>
+                </div>
+              )}
+            </Upload>
           </Form.Item>
+          <Form.Item name="thumbnailUrl" hidden>
+            <Input />
+          </Form.Item>
+          {editing?.authorName ? (
+            <Form.Item label="Tác giả">
+              <Input value={editing.authorName} disabled />
+            </Form.Item>
+          ) : (
+            <Form.Item label="Tác giả">
+              <Input value="Tài khoản đang đăng nhập" disabled />
+            </Form.Item>
+          )}
           <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}>
             <Select options={statusOptions.map((s) => ({ label: s, value: s }))} />
           </Form.Item>

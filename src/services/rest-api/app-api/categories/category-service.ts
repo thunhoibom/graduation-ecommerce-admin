@@ -19,6 +19,7 @@ export type CategoryPojo = {
   id?: number
   code: string
   name: string
+  displayOrder?: number
   image?: ImagePojo
   parent?: CategoryPojo
   children?: CategoryPojo[]
@@ -27,6 +28,8 @@ export type CategoryPojo = {
 export type CategorySearchParams = {
   pageIndex?: number
   pageSize?: number
+  sortBy?: string
+  order?: 'asc' | 'desc'
 }
 
 export type PageResponse<T> = {
@@ -58,6 +61,10 @@ export const createCategory = (data: CategoryPojo) => {
 
 export const updateCategory = (id: number, data: CategoryPojo) => {
   return categoryService.put<CategoryPojo>(`/${id}`, data)
+}
+
+export const patchCategory = (id: number, data: Record<string, unknown>) => {
+  return categoryService.patch<void>(`/${id}`, data)
 }
 
 export const deleteCategory = (id: number) => {

@@ -3,12 +3,12 @@
 import React, { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Table, Card, Typography, Row, Col, Button, Input, Select,
+  Typography, Button, Input, Select,
   Tag, Space, message, Popconfirm,
 } from 'antd'
 import {
   EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  SyncOutlined, UndoOutlined, SearchOutlined,
+  SyncOutlined, SearchOutlined, DownloadOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -26,6 +26,16 @@ import {
   type ReturnSearchParams,
 } from '@/services/rest-api/app-api/returns/return-service'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+  LIST_FILTER_SELECT_FLEX,
+} from '@/shared/components/list-filter'
+import { exportReturnList } from './return-list-export'
+import { formatReturnReason } from '@/lib/return-reason'
 
 const { Title, Text } = Typography
 
@@ -46,6 +56,18 @@ const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, cfg]) => ({
   value,
 }))
 
+const REFUND_METHOD_LABEL: Record<string, string> = {
+  ORIGINAL_PAYMENT: 'Hoàn về thanh toán gốc',
+  STORE_CREDIT: 'Tín dụng cửa hàng',
+  BANK_TRANSFER: 'Chuyển khoản ngân hàng',
+}
+
+const QC_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  PENDING: { color: 'gold', label: 'Chờ kiểm tra' },
+  PASSED: { color: 'green', label: 'Đạt' },
+  FAILED: { color: 'red', label: 'Không đạt' },
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 const formatVND = (value: number | undefined) => {
@@ -55,6 +77,14 @@ const formatVND = (value: number | undefined) => {
     currency: 'VND',
     maximumFractionDigits: 0,
   }).format(value)
+}
+
+const formatDate = (value?: string) => (value ? dayjs(value).format('DD/MM/YYYY HH:mm') : '—')
+
+const getReturnItemSummary = (record: ReturnRequestPojo) => {
+  const lineCount = record.items?.length ?? 0
+  const quantity = record.items?.reduce((sum, item) => sum + (item.quantity ?? 0), 0) ?? 0
+  return { lineCount, quantity }
 }
 
 // ── ReturnListView ───────────────────────────────────────────────
@@ -67,7 +97,7 @@ const ReturnListView: React.FC = () => {
     pageSize: 20,
   })
   const [rejectReason, setRejectReason] = useState('')
-  const [cancelReason, setCancelReason] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const { data, isLoading, mutate } = useAxiosSWR<{
     items: ReturnRequestPojo[]
@@ -91,6 +121,24 @@ const ReturnListView: React.FC = () => {
   const handleFilter = useCallback((key: string, value: string | undefined) => {
     setQueryParams((prev) => ({ ...prev, [key]: value, pageIndex: 0 }))
   }, [])
+
+  const handleExport = useCallback(async () => {
+    if (exporting) return
+
+    setExporting(true)
+    try {
+      const exportedCount = await exportReturnList(queryParams as ReturnSearchParams)
+      if (exportedCount === 0) {
+        messageApi.warning('Không có yêu cầu nào để xuất')
+        return
+      }
+      messageApi.success(`Đã xuất ${exportedCount} yêu cầu`)
+    } catch {
+      messageApi.error('Xuất Excel thất bại')
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, messageApi, queryParams])
 
   const handleAction = async (
     action: 'approve' | 'reject' | 'receive' | 'complete' | 'cancel',
@@ -117,38 +165,69 @@ const ReturnListView: React.FC = () => {
       title: 'Mã yêu cầu',
       dataIndex: 'id',
       key: 'id',
-      width: 120,
+      width: 110,
+      fixed: 'left',
       render: (id: number) => <Text code>#{id}</Text>,
     },
     {
       title: 'Mã đơn hàng',
       dataIndex: 'orderId',
       key: 'orderId',
-      width: 120,
-      render: (id: number) => id ? <Text code>#{id}</Text> : '—',
+      width: 110,
+      render: (id: number) => (id ? <Text code>#{id}</Text> : '—'),
+    },
+    {
+      title: 'Khách hàng',
+      key: 'customer',
+      width: 180,
+      ellipsis: true,
+      render: (_: unknown, record: ReturnRequestPojo) => {
+        const name = record.orderRecipientName || record.order?.recipientName || '—'
+        const contact = record.orderRecipientPhone || record.order?.recipientPhone || ''
+        return (
+          <div>
+            <Text strong>{name}</Text>
+            {contact ? (
+              <>
+                <br />
+                <Text type="secondary" style={{ fontSize: 12 }}>{contact}</Text>
+              </>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       title: 'Ngày yêu cầu',
       dataIndex: 'date',
       key: 'date',
       width: 140,
-      render: (d: string) => d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '—',
+      render: (d: string) => formatDate(d),
     },
     {
       title: 'Lý do',
       dataIndex: 'reason',
       key: 'reason',
+      width: 180,
       ellipsis: true,
-      render: (r: string) => r || '—',
+      render: (r: string) => formatReturnReason(r),
     },
     {
-      title: 'Số sản phẩm',
-      key: 'itemCount',
-      width: 110,
+      title: 'Hàng trả',
+      key: 'returnItems',
+      width: 120,
       align: 'center',
-      render: (_: unknown, record: ReturnRequestPojo) => (
-        <Tag>{record.items?.reduce((sum, item) => sum + (item.quantity ?? 0), 0) ?? 0}</Tag>
-      ),
+      render: (_: unknown, record: ReturnRequestPojo) => {
+        const { lineCount, quantity } = getReturnItemSummary(record)
+        return (
+          <div>
+            <Text strong>{lineCount}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}> mặt</Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 12 }}>{quantity} sản phẩm</Text>
+          </div>
+        )
+      },
     },
     {
       title: 'Hoàn tiền',
@@ -162,21 +241,55 @@ const ReturnListView: React.FC = () => {
       ),
     },
     {
+      title: 'Phương thức hoàn',
+      dataIndex: 'refundMethod',
+      key: 'refundMethod',
+      width: 170,
+      ellipsis: true,
+      render: (value?: string) => REFUND_METHOD_LABEL[value ?? ''] ?? value ?? '—',
+    },
+    {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
       width: 150,
-      render: (status: string, record: ReturnRequestPojo) => {
+      render: (status: string) => {
         const cfg = STATUS_CONFIG[status] ?? { color: 'default', label: status }
-        return (
-          <Space size={4} wrap>
-            <Tag color={cfg.color}>{cfg.label}</Tag>
-            {status === 'RECEIVED' && record.qcStatus === 'PENDING' && (
-              <Tag color="gold">Chờ QC</Tag>
-            )}
-          </Space>
-        )
+        return <Tag color={cfg.color}>{cfg.label}</Tag>
       },
+    },
+    {
+      title: 'QC kho',
+      dataIndex: 'qcStatus',
+      key: 'qcStatus',
+      width: 130,
+      render: (value?: string) => {
+        if (!value) return '—'
+        const cfg = QC_STATUS_CONFIG[value] ?? { color: 'default', label: value }
+        return <Tag color={cfg.color}>{cfg.label}</Tag>
+      },
+    },
+    {
+      title: 'Mã vận đơn trả',
+      dataIndex: 'trackingNumber',
+      key: 'trackingNumber',
+      width: 150,
+      ellipsis: true,
+      render: (value?: string) => (value ? <Text copyable style={{ fontFamily: 'monospace' }}>{value}</Text> : '—'),
+    },
+    {
+      title: 'Cập nhật cuối',
+      dataIndex: 'lastModified',
+      key: 'lastModified',
+      width: 140,
+      render: (value?: string) => formatDate(value),
+    },
+    {
+      title: 'Hoàn tiền lúc',
+      dataIndex: 'refundedAt',
+      key: 'refundedAt',
+      width: 140,
+      render: (value?: string) => formatDate(value),
     },
     {
       title: 'Thao tác',
@@ -256,46 +369,56 @@ const ReturnListView: React.FC = () => {
     <>
       {contextHolder}
 
-      {/* Page Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Yêu cầu trả hàng / Hoàn tiền</Title>
-        <Text type="secondary">Xem và xử lý các yêu cầu đổi/trả hàng</Text>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Title level={3} style={{ margin: 0 }}>Yêu cầu trả hàng / Hoàn tiền</Title>
+          <Text type="secondary">Xem và xử lý các yêu cầu trả hàng / hoàn tiền.</Text>
+        </div>
+        <Button
+          icon={<DownloadOutlined />}
+          loading={exporting}
+          onClick={handleExport}
+        >
+          Xuất Excel
+        </Button>
       </div>
 
-      {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={16} md={8}>
-            <Input.Search
-              placeholder="Tìm mã yêu cầu, đơn hàng..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={(v) => setQueryParams((prev) => ({
-                ...prev,
-                orderId: v ? Number(v) : undefined,
-                pageIndex: 0,
-              }))}
-            />
-          </Col>
-          <Col xs={24} sm={8} md={4}>
-            <Select
-              placeholder="Trạng thái"
-              allowClear
-              style={{ width: '100%' }}
-              options={STATUS_OPTIONS}
-              onChange={(v) => handleFilter('status', v)}
-            />
-          </Col>
-        </Row>
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Mã yêu cầu / đơn hàng">
+              <Input.Search
+                placeholder="Tìm mã yêu cầu, đơn hàng..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={(v) => setQueryParams((prev) => ({
+                  ...prev,
+                  orderId: v ? Number(v) : undefined,
+                  pageIndex: 0,
+                }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Trạng thái">
+              <Select
+                placeholder="Trạng thái"
+                allowClear
+                style={{ width: '100%' }}
+                options={STATUS_OPTIONS}
+                onChange={(v) => handleFilter('status', v)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+        </ListFilterGrid>
+      </ListFilterCard>
 
-      {/* Table */}
       <AppTable
         rowKey="id"
         columns={columns}
         dataSource={data?.items ?? []}
         loading={isLoading}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1900 }}
         pagination={{
           current: (queryParams.pageIndex ?? 0) + 1,
           pageSize: queryParams.pageSize ?? 20,

@@ -240,7 +240,7 @@ const VariantsPage: React.FC<VariantsPageProps> = ({ productId }) => {
       dataIndex: 'sku',
       key: 'sku',
       width: 140,
-      render: (s: string) => s ? <Text code style={{ fontSize: 12 }}>{s}</Text> : <Text type="secondary">—</Text>,
+      render: (s: string) => s ? <Text code>{s}</Text> : <Text type="secondary">—</Text>,
     },
     {
       title: 'Barcode',

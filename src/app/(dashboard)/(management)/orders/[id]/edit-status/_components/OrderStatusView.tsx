@@ -297,7 +297,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                   <>
                     <Alert
                       message="Đang trong quá trình giao"
-                      description="Chọn kết quả giao hàng phù hợp để cập nhật trạng thái đơn."
+                      description="Chọn giao thành công hoặc thu hồi vận chuyển. Giao thất bại sẽ theo vòng return của ĐVVC và chỉ chốt khi trạng thái returned."
                       type="info"
                       showIcon
                       style={{ marginBottom: 16 }}
@@ -313,14 +313,6 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                         Giao thành công
                       </Button>
                       <Button
-                        danger
-                        icon={<CloseCircleOutlined />}
-                        onClick={() => handleAction('deliveryFailed')}
-                        loading={submitting}
-                      >
-                        Giao thất bại
-                      </Button>
-                      <Button
                         icon={<CloseCircleOutlined />}
                         onClick={() => handleAction('deliveryCancelled')}
                         loading={submitting}
@@ -334,7 +326,7 @@ const OrderStatusView: React.FC<OrderStatusViewProps> = ({ orderId }) => {
                 {availableActions.includes('markReturned') && (
                   <Alert
                     message="Hoàn hàng về kho"
-                    description="Đơn đã kết thúc giao vận nhưng phát sinh hoàn hàng. Nhấn nút dưới để chuyển trạng thái Returned."
+                    description="Đơn đã kết thúc giao vận nhưng phát sinh hoàn hàng về kho (returned). Hoàn tiền sau trả hàng xử lý tại Yêu cầu trả hàng."
                     type="warning"
                     showIcon
                     action={

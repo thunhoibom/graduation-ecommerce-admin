@@ -8,7 +8,7 @@ const returnService = createApiService(appApiIns, '/api/data/return-requests')
 // ─────────────────────────────────────────────────────────────────
 
 // Backend: ReturnRequest.RefundMethod
-export type RefundMethod = 'ORIGINAL_PAYMENT' | 'STORE_CREDIT' | 'BANK_TRANSFER'
+export type RefundMethod = 'BANK_TRANSFER'
 
 // Backend: ReturnRequest.ReturnRequestStatus
 export type ReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUND_PROCESSING' | 'REFUND_COMPLETED' | 'CANCELLED'
@@ -26,7 +26,7 @@ export type ReturnRequestItemPojo = {
     id?: number
     name?: string
     barcode?: string
-    images?: { url: string }[]
+    images?: { url?: string }[]
   }
 }
 
@@ -51,6 +51,8 @@ export type ReturnRequestPojo = {
   qcPhotoUrls?: string
   qcCompletedAt?: string
   orderId?: number
+  orderRecipientName?: string
+  orderRecipientPhone?: string
   items?: ReturnRequestItemPojo[]
   // Enriched fields from joined entities
   order?: {
@@ -89,8 +91,11 @@ export const getReturnById = (id: number) => {
   return returnService.get<ReturnRequestPojo>(`/${id}`)
 }
 
-export const approveReturn = (id: number) => {
-  return returnService.post<ReturnRequestPojo>(`/approve/${id}`, {})
+export const approveReturn = (
+  id: number,
+  payload?: { adminNotes?: string; refundAmount?: number },
+) => {
+  return returnService.post<ReturnRequestPojo>(`/approve/${id}`, payload ?? {})
 }
 
 export const rejectReturn = (id: number, reason?: string) => {

@@ -3,17 +3,9 @@ import { Modal, ModalProps } from 'antd'
 
 type AppModalProps = ModalProps
 
-const AppModal: React.FC<AppModalProps> = ({
-  children,
-  destroyOnHidden,
-  destroyOnHidden,
-  ...props
-}) => {
+const AppModal: React.FC<AppModalProps> = ({ children, destroyOnHidden, ...props }) => {
   return (
-    <Modal
-      {...props}
-      destroyOnHidden={destroyOnHidden ?? destroyOnHidden}
-    >
+    <Modal {...props} destroyOnHidden={destroyOnHidden}>
       {children}
     </Modal>
   )

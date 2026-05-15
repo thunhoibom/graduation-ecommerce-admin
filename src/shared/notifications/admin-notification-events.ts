@@ -8,6 +8,7 @@ export type NewOrderNotificationPayload = {
   createdAt: string
   totalAmount: number
   status: string
+  previewImageUrl?: string
 }
 
 export const emitNewOrderReceived = (payload: NewOrderNotificationPayload) => {

@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Card, Typography, Row, Col, Button, Input, Space, Tag, Tooltip,
+  Typography, Button, Input, Space, Tag, Tooltip,
 } from 'antd'
 import {
   SearchOutlined, EyeOutlined, MailOutlined, PhoneOutlined, PlusOutlined, UserOutlined,
@@ -17,6 +17,13 @@ import {
   type CustomerSearchParams,
 } from '@/services/rest-api/app-api/customers/customer-service'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+} from '@/shared/components/list-filter'
 import CustomerCreateModal from './CustomerCreateModal'
 
 const { Title, Text } = Typography
@@ -210,19 +217,20 @@ const CustomerListView: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={16} md={12}>
-            <Input.Search
-              placeholder="Tìm theo tên, email, SĐT..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={handleSearch}
-              style={{ width: '100%' }}
-            />
-          </Col>
-        </Row>
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Từ khóa">
+              <Input.Search
+                placeholder="Tìm theo tên, email, SĐT..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={handleSearch}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       {/* Table */}
       <AppTable

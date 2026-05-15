@@ -3,12 +3,12 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Table, Tag, Space, Button, Typography, Card, Row, Col,
+  Table, Tag, Space, Button, Typography,
   Select, DatePicker, Input, message, Dropdown, Modal,
 } from 'antd'
 import {
   EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  SyncOutlined, PlusOutlined, SearchOutlined, DownOutlined,
+  SyncOutlined, PlusOutlined, SearchOutlined, DownOutlined, DownloadOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -38,8 +38,20 @@ import {
   normalizePaymentStatus,
   type OrderStatusAction,
 } from '@/constants/order-status'
+import { resolveOrderPaymentStatus } from '@/lib/order-refund'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_DATE_FLEX,
+  LIST_FILTER_INPUT_FLEX,
+  LIST_FILTER_SEARCH_FLEX,
+  LIST_FILTER_SELECT_FLEX,
+} from '@/shared/components/list-filter'
 import { addNewOrderListener } from '@/shared/notifications/admin-notification-events'
+import { exportOrderList } from './order-list-export'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -64,6 +76,7 @@ const OrderListView: React.FC = () => {
   })
   const [rejectReason, setRejectReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const { data, isLoading, mutate } = useAxiosSWR<{
     items: OrderPojo[]
@@ -89,13 +102,11 @@ const OrderListView: React.FC = () => {
 
   const handleTableChange = useCallback((page: number, size: number) => {
     setQueryParams((prev) => ({ ...prev, pageIndex: Math.max(0, page - 1), pageSize: size }))
-    mutate()
-  }, [mutate])
+  }, [])
 
   const handleFilter = useCallback((key: string, value: string | undefined) => {
     setQueryParams((prev) => ({ ...prev, [key]: value, pageIndex: 0 }))
-    mutate()
-  }, [mutate])
+  }, [])
 
   const handleDateRange = useCallback(
     (dates: [unknown, unknown] | null) => {
@@ -107,10 +118,27 @@ const OrderListView: React.FC = () => {
         dateTo,
         pageIndex: 0,
       }))
-      mutate()
     },
-    [mutate],
+    [],
   )
+
+  const handleExport = useCallback(async () => {
+    if (exporting) return
+
+    setExporting(true)
+    try {
+      const exportedCount = await exportOrderList(queryParams as OrderSearchParams)
+      if (exportedCount === 0) {
+        messageApi.warning('Không có đơn hàng nào để xuất')
+        return
+      }
+      messageApi.success(`Đã xuất ${exportedCount} đơn hàng`)
+    } catch {
+      messageApi.error('Xuất Excel thất bại')
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, messageApi, queryParams])
 
   const handleStatusAction = async (
     orderId: number,
@@ -219,7 +247,7 @@ const OrderListView: React.FC = () => {
       render: (_: unknown, record: OrderPojo) => (
         <div>
           {(() => {
-            const p = normalizePaymentStatus(record.paymentStatus)
+            const p = resolveOrderPaymentStatus(record)
             const cfg = PAYMENT_STATUS_CONFIG[p] ?? { color: 'default', label: p }
             return <Tag color={cfg.color}>{cfg.label}</Tag>
           })()}
@@ -348,62 +376,81 @@ const OrderListView: React.FC = () => {
           <Title level={3} style={{ margin: 0 }}>Quản lý đơn hàng</Title>
           <Text type="secondary">Danh sách và cập nhật trạng thái đơn hàng</Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => router.push('/orders/new')}
-          style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
-        >
-          Tạo đơn hàng
-        </Button>
+        <Space>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={handleExport}
+          >
+            Xuất Excel
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => router.push('/orders/new')}
+            style={{ backgroundColor: '#5856d6', borderColor: '#5856d6' }}
+          >
+            Tạo đơn hàng
+          </Button>
+        </Space>
       </div>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={12} md={6}>
-            <Input.Search
-              placeholder="Tìm tên, SĐT..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={(v) => handleFilter('customerName', v || undefined)}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4}>
-            <Select
-              placeholder="Trạng thái"
-              allowClear
-              style={{ width: '100%' }}
-              options={FULFILLMENT_STATUS_OPTIONS}
-              onChange={(v) => handleFilter('fulfillmentStatus', v)}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5}>
-            <Select
-              placeholder="Thanh toán"
-              allowClear
-              style={{ width: '100%' }}
-              options={PAYMENT_STATUS_OPTIONS}
-              onChange={(v) => handleFilter('paymentStatus', v)}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <RangePicker
-              format="DD/MM/YYYY"
-              placeholder={['Từ ngày', 'Đến ngày']}
-              onChange={handleDateRange}
-              style={{ width: '100%' }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4}>
-            <Input
-              placeholder="Mã vận đơn"
-              allowClear
-              onChange={(e) => handleFilter('trackingNumber', e.target.value || undefined)}
-            />
-          </Col>
-        </Row>
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Khách hàng">
+              <Input.Search
+                placeholder="Tìm tên, SĐT..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={(v) => handleFilter('customerName', v || undefined)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Trạng thái giao hàng">
+              <Select
+                placeholder="Trạng thái"
+                allowClear
+                style={{ width: '100%' }}
+                options={FULFILLMENT_STATUS_OPTIONS}
+                onChange={(v) => handleFilter('fulfillmentStatus', v)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Thanh toán">
+              <Select
+                placeholder="Thanh toán"
+                allowClear
+                style={{ width: '100%' }}
+                options={PAYMENT_STATUS_OPTIONS}
+                onChange={(v) => handleFilter('paymentStatus', v)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_DATE_FLEX}>
+            <ListFilterField label="Ngày đặt hàng">
+              <RangePicker
+                format="DD/MM/YYYY"
+                placeholder={['Từ ngày', 'Đến ngày']}
+                onChange={handleDateRange}
+                style={{ width: '100%' }}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_INPUT_FLEX}>
+            <ListFilterField label="Mã vận đơn">
+              <Input
+                placeholder="Mã vận đơn"
+                allowClear
+                onChange={(e) => handleFilter('trackingNumber', e.target.value || undefined)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       {/* Table */}
       <AppTable

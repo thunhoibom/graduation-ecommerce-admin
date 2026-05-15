@@ -27,6 +27,7 @@ import {
   createOrder,
   type OrderPojo,
   type OrderDetailPojo,
+  type PersonPojo,
 } from '@/services/rest-api/app-api/orders/order-service'
 
 const { Title, Text } = Typography
@@ -69,8 +70,12 @@ const OrderNewView: React.FC = () => {
     customerSearch.length >= 2 ? [SWR_KEYS.CUSTOMER_LIST, customerSearch] : null,
     customerSearch.length >= 2
       ? async () => {
-          const res = await searchCustomers({ name: customerSearch, page: 1, size: 20 })
-          return res.data ?? []
+          const res = await searchCustomers({
+            q: customerSearch,
+            pageIndex: 0,
+            pageSize: 20,
+          })
+          return res.items ?? []
         }
       : null,
   )
@@ -80,8 +85,12 @@ const OrderNewView: React.FC = () => {
     productSearch.length >= 2 ? ['products/search', productSearch] : null,
     productSearch.length >= 2
       ? async () => {
-          const res = await searchProducts({ name: productSearch, page: 1, size: 20 })
-          return res.data ?? []
+          const res = await searchProducts({
+            name: productSearch,
+            pageIndex: 0,
+            pageSize: 20,
+          })
+          return res.items ?? []
         }
       : null,
   )
@@ -168,9 +177,21 @@ const OrderNewView: React.FC = () => {
         (c: CustomerPojo) => c.id === values.customerId,
       )
 
+      const customer: PersonPojo | undefined = selectedCustomer
+        ? {
+            id: selectedCustomer.id,
+            firstName: selectedCustomer.firstName,
+            lastName: selectedCustomer.lastName,
+            email: selectedCustomer.email ?? '',
+            phone1: selectedCustomer.phone1,
+            phone2: selectedCustomer.phone2,
+            idNumber: selectedCustomer.idNumber,
+          }
+        : undefined
+
       const payload: OrderPojo = {
         customerId: values.customerId as number,
-        customer: selectedCustomer as CustomerPojo,
+        customer,
         customerName: [selectedCustomer?.firstName, selectedCustomer?.lastName]
           .filter(Boolean).join(' '),
         customerEmail: selectedCustomer?.email,

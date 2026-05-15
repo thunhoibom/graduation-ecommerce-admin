@@ -58,6 +58,13 @@ export const paths = {
     detail: (id: string) => `/customers/${id}`,
   },
 
+  // Users
+  users: {
+    root: '/users',
+    list: '/users/list',
+    roles: '/users/roles',
+  },
+
   // Discount Codes
   discounts: {
     root: '/discounts',
@@ -71,12 +78,6 @@ export const paths = {
   shipping: {
     root: '/shipping',
     list: '/shipping/methods',
-  },
-
-  // Media
-  media: {
-    root: '/media',
-    list: '/media/list',
   },
 
   // Settings

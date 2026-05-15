@@ -34,6 +34,7 @@ export type PurchaseOrderLinePojo = {
   orderedQty: number
   receivedQty: number
   unitCost?: number
+  lineTotalAmount?: number
   note?: string
 }
 
@@ -55,6 +56,9 @@ export type PurchaseOrderPojo = {
   note?: string
   createdAt?: string
   updatedAt?: string
+  lineCount?: number
+  orderedTotalAmount?: number
+  receivedTotalAmount?: number
   lines: PurchaseOrderLinePojo[]
 }
 

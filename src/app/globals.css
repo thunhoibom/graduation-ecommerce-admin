@@ -65,3 +65,16 @@ a {
   scrollbar-width: thin;
   scrollbar-color: #d9d9d9 transparent;
 }
+
+/* Admin tables: keep status tags and identifier chips readable */
+.ant-table-wrapper .ant-tag {
+  font-size: 13px;
+  line-height: 20px;
+  padding-inline: 8px;
+}
+
+.ant-table-wrapper .ant-typography code {
+  font-size: 13px;
+  line-height: 20px;
+  padding: 2px 8px;
+}

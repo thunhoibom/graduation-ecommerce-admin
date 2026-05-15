@@ -171,8 +171,7 @@ const ProductListView: React.FC = () => {
   const handleClearFilters = useCallback(() => {
     const size = queryParams.pageSize ?? '20'
     router.replace(`${pathname}?pageIndex=0&pageSize=${encodeURIComponent(size)}`)
-    mutate()
-  }, [router, pathname, queryParams.pageSize, mutate])
+  }, [router, pathname, queryParams.pageSize])
 
   return (
     <>
@@ -187,10 +186,7 @@ const ProductListView: React.FC = () => {
       {/* Filters */}
       <FilterToolbar
         params={queryParams}
-        onChange={(params) => {
-          setTableFetchingParams(params)
-          mutate()
-        }}
+        onChange={setTableFetchingParams}
         categories={categories}
         onAddNew={handleAddNew}
         onBulkOpen={() => setBulkModalOpen(true)}
@@ -257,10 +253,7 @@ const ProductListView: React.FC = () => {
             )
           },
         }}
-        onTableChange={(page, size) => {
-          handleTableChange(page, size)
-          mutate()
-        }}
+        onTableChange={handleTableChange}
         onEdit={handleEdit}
         onView={handleView}
         onDelete={handleDelete}

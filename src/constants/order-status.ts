@@ -62,9 +62,8 @@ export const ACTIONS_BY_FULFILLMENT_STATUS: Record<string, OrderStatusAction[]> 
   PROCESSING: ['handover'],
   READY_TO_PICK: ['handover'],
   PICKED_UP: ['handover'],
-  DELIVERING: ['complete', 'deliveryFailed', 'deliveryCancelled'],
+  DELIVERING: ['complete', 'deliveryCancelled'],
   DELIVERED: ['markReturned'],
-  DELIVERY_FAILED: ['markReturned'],
   CANCELLED: ['markReturned'],
 }
 

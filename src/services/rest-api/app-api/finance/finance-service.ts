@@ -10,6 +10,7 @@ export type FinancePaymentItem = {
   orderStatus?: string
   paymentStatus?: string
   orderTotal: number
+  totalRefundedAmount?: number
   callbackResult?: string
   callbackAuthorizedAmount?: number
   processedAt?: string

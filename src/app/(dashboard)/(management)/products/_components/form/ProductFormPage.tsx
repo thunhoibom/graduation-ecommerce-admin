@@ -33,11 +33,11 @@ const ProductFormPage: React.FC<ProductFormPageProps> = ({ productId }) => {
 
   // Load categories
   const { data: categoryData } = useAxiosSWR<PageResponse<ProductCategoryPojo[]>>(
-    [SWR_KEYS.CATEGORY_LIST, { page: 1, size: 100 }],
-    async () => searchCategories({ page: 1, size: 100 }),
+    [SWR_KEYS.CATEGORY_LIST, { pageIndex: 0, pageSize: 100 }],
+    async () => searchCategories({ pageIndex: 0, pageSize: 100 }),
     { revalidateOnMount: true },
   )
-  const categories = categoryData?.data ?? []
+  const categories = categoryData?.items ?? []
 
   // Load product if editing
   const { data: productData, isLoading: loadingProduct } = useAxiosSWR<ProductPojo>(

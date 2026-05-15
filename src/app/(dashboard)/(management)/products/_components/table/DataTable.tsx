@@ -95,12 +95,8 @@ const DataTable: React.FC<DataTableProps> = ({
         title: 'Barcode',
         dataIndex: 'barcode',
         key: 'barcode',
-        width: 120,
-        render: (barcode: string) => (
-          <Text code style={{ fontSize: 12 }}>
-            {barcode}
-          </Text>
-        ),
+        width: 240,
+        render: (barcode: string) => <Text code>{barcode}</Text>,
       },
       {
         title: 'Tên sản phẩm',
@@ -288,7 +284,7 @@ const DataTable: React.FC<DataTableProps> = ({
       columns={columns}
       dataSource={data}
       loading={loading}
-      scroll={{ x: 1180 }}
+      scroll={{ x: 1300 }}
       rowSelection={rowSelection}
       pagination={{
         current,

@@ -26,6 +26,25 @@ export interface LowStockAlertPojo {
   criticalStock: number
 }
 
+export interface RestockSuggestionPojo {
+  variantId: number
+  sku?: string
+  productName: string
+  size?: string
+  color?: string
+  currentStock: number
+  criticalStock: number
+  lookbackDays: number
+  leadTimeDays: number
+  soldInLookback: number
+  avgDailySold: number
+  projectedDemand: number
+  safetyStock: number
+  recommendedRestockQty: number
+}
+
+export type RevenueGroupBy = 'day' | 'week' | 'month'
+
 export interface AdminDashboardStatsPojo {
   totalRevenue: number
   totalOrders: number

@@ -11,7 +11,6 @@ import {
   TeamOutlined,
   GiftOutlined,
   GlobalOutlined,
-  PictureOutlined,
 } from '@ant-design/icons'
 import Link from 'next/link'
 import { paths } from '@/routes/paths'
@@ -89,11 +88,6 @@ const menuItems: MenuProps['items'] = [
     key: 'shipping',
     icon: <GlobalOutlined />,
     label: <Link href={paths.shipping.list}>Phương thức vận chuyển</Link>,
-  },
-  {
-    key: 'media',
-    icon: <PictureOutlined />,
-    label: <Link href={paths.media.list}>Thư viện media</Link>,
   },
 ]
 

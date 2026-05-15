@@ -2,12 +2,12 @@
 
 import React, { useState, useCallback, useMemo } from 'react'
 import {
-  Table, Card, Typography, Row, Col, Button, Input, Modal,
-  Form, Select, Space, message, Popconfirm, Breadcrumb, Tag, Tooltip, theme, Upload
+  Typography, Button, Input, Modal,
+  Form, Select, Space, message, Popconfirm, Tag, Tooltip, theme, Upload, InputNumber
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  FolderOutlined, NodeIndexOutlined, UploadOutlined
+  FolderOutlined, NodeIndexOutlined, ArrowUpOutlined, ArrowDownOutlined
 } from '@ant-design/icons'
 import type { UploadFile, UploadProps } from 'antd'
 import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
@@ -18,10 +18,20 @@ import {
   searchCategories,
   createCategory,
   updateCategory,
+  patchCategory,
   deleteCategory,
   type CategoryPojo,
   type ImagePojo,
 } from '@/services/rest-api/app-api/categories/category-service'
+import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterActions,
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+} from '@/shared/components/list-filter'
 
 const { Title, Text } = Typography
 
@@ -43,6 +53,20 @@ const flattenCategories = (items: CategoryPojo[]): CategoryPojo[] => {
   dfs(items)
   return result
 }
+
+const compareByDisplayOrder = (a: CategoryPojo, b: CategoryPojo) => {
+  const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+  if (orderDiff !== 0) return orderDiff
+  return a.name.localeCompare(b.name, 'vi')
+}
+
+const sortTreeNodes = (nodes: CategoryPojo[]): CategoryPojo[] =>
+  [...nodes]
+    .sort(compareByDisplayOrder)
+    .map((node) => ({
+      ...node,
+      children: node.children ? sortTreeNodes(node.children) : undefined,
+    }))
 
 // Rebuild correctly mapped tree for Ant Design Table
 const buildTree = (flatItems: CategoryPojo[]): CategoryPojo[] => {
@@ -80,7 +104,7 @@ const buildTree = (flatItems: CategoryPojo[]): CategoryPojo[] => {
   }
   cleanup(roots)
 
-  return roots
+  return sortTreeNodes(roots)
 }
 
 // ── CategoryListView ────────────────────────────────────────────
@@ -88,9 +112,16 @@ const buildTree = (flatItems: CategoryPojo[]): CategoryPojo[] => {
 const CategoryListView: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage()
   const { token } = theme.useToken()
-  const [queryParams, setQueryParams] = useState<{ pageIndex?: number; pageSize?: number }>({
+  const [queryParams, setQueryParams] = useState<{
+    pageIndex?: number
+    pageSize?: number
+    sortBy?: string
+    order?: 'asc' | 'desc'
+  }>({
     pageIndex: 0,
     pageSize: 200,
+    sortBy: 'displayOrder',
+    order: 'asc',
   })
   const [searchText, setSearchText] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -128,11 +159,15 @@ const CategoryListView: React.FC = () => {
       const term = searchText.toLowerCase()
       return flatCategories.filter(
         c => c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term)
-      ).map(c => ({ ...c, children: undefined })) // Flat view when searching
+      ).sort(compareByDisplayOrder).map(c => ({ ...c, children: undefined })) // Flat view when searching
     }
 
     return tree
   }, [flatCategories, searchText])
+
+  const handleSearch = useCallback((value: string) => {
+    setSearchText(value.trim())
+  }, [])
 
   const handleAddRoot = () => {
     setEditingCategory(null)
@@ -147,6 +182,7 @@ const CategoryListView: React.FC = () => {
       code: record.code,
       name: record.name,
       parentId: record.parent?.id,
+      displayOrder: record.displayOrder ?? 0,
     })
 
     if (record.image) {
@@ -189,6 +225,38 @@ const CategoryListView: React.FC = () => {
     }
   }, [mutate, messageApi])
 
+  const getSiblings = useCallback((record: CategoryPojo) => {
+    const parentId = record.parent?.id ?? null
+    return flatCategories
+      .filter((category) => (category.parent?.id ?? null) === parentId)
+      .sort(compareByDisplayOrder)
+  }, [flatCategories])
+
+  const handleMove = useCallback(async (record: CategoryPojo, direction: 'up' | 'down') => {
+    const siblings = getSiblings(record)
+    const currentIndex = siblings.findIndex((item) => item.id === record.id)
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+      return
+    }
+
+    const current = siblings[currentIndex]
+    const target = siblings[targetIndex]
+    const currentOrder = current.displayOrder ?? currentIndex
+    const targetOrder = target.displayOrder ?? targetIndex
+
+    try {
+      await Promise.all([
+        patchCategory(current.id!, { displayOrder: targetOrder }),
+        patchCategory(target.id!, { displayOrder: currentOrder }),
+      ])
+      messageApi.success('Đã cập nhật thứ tự hiển thị')
+      mutate()
+    } catch {
+      messageApi.error('Không thể cập nhật thứ tự hiển thị')
+    }
+  }, [getSiblings, messageApi, mutate])
+
   const handleFormSubmit = async (values: Record<string, unknown>) => {
     setSubmitting(true)
     try {
@@ -197,6 +265,7 @@ const CategoryListView: React.FC = () => {
       const payload: CategoryPojo = {
         code: values.code as string,
         name: values.name as string,
+        displayOrder: typeof values.displayOrder === 'number' ? values.displayOrder : 0,
         image: uploadedImage,
         parent: values.parentId
           ? flatCategories.find((c) => (c.id ?? c.code) === values.parentId)
@@ -239,7 +308,7 @@ const CategoryListView: React.FC = () => {
           ) : (
             <FolderOutlined style={{ color: token.colorPrimary }} />
           )}
-          <Text strong style={{ fontSize: 15 }}>{text}</Text>
+          <Text strong>{text}</Text>
         </Space>
       ),
     },
@@ -249,10 +318,20 @@ const CategoryListView: React.FC = () => {
       key: 'code',
       width: '30%',
       render: (code) => (
-        <Tag color="blue" variant="filled" style={{ padding: '4px 8px', borderRadius: 6 }}>
+        <Tag color="blue">
           <NodeIndexOutlined style={{ marginRight: 4 }} />
           {code}
         </Tag>
+      ),
+    },
+    {
+      title: 'Thứ tự',
+      dataIndex: 'displayOrder',
+      key: 'displayOrder',
+      width: 90,
+      align: 'center',
+      render: (value: number | undefined) => (
+        <Tag color="default">{value ?? 0}</Tag>
       ),
     },
     {
@@ -261,23 +340,41 @@ const CategoryListView: React.FC = () => {
       width: '20%',
       render: (_, record) => {
         return record.parent ? (
-          <Tag color="cyan" variant="filled">
-            Danh mục con
-          </Tag>
+          <Tag color="cyan">Danh mục con</Tag>
         ) : (
-          <Tag color="volcano" variant="filled">
-            Root
-          </Tag>
+          <Tag color="volcano">Danh mục gốc</Tag>
         )
       }
     },
     {
       title: 'Hành động',
       key: 'action',
-      width: '15%',
+      width: 180,
       align: 'right',
-      render: (_, record) => (
+      render: (_, record) => {
+        const siblings = getSiblings(record)
+        const currentIndex = siblings.findIndex((item) => item.id === record.id)
+        const canMoveUp = currentIndex > 0
+        const canMoveDown = currentIndex >= 0 && currentIndex < siblings.length - 1
+
+        return (
         <Space size="middle" onClick={e => e.stopPropagation()}>
+          <Tooltip title="Lên trên">
+            <Button
+              type="text"
+              icon={<ArrowUpOutlined />}
+              disabled={!canMoveUp}
+              onClick={() => handleMove(record, 'up')}
+            />
+          </Tooltip>
+          <Tooltip title="Xuống dưới">
+            <Button
+              type="text"
+              icon={<ArrowDownOutlined />}
+              disabled={!canMoveDown}
+              onClick={() => handleMove(record, 'down')}
+            />
+          </Tooltip>
           <Tooltip title="Sửa danh mục">
             <Button
               type="text"
@@ -299,83 +396,59 @@ const CategoryListView: React.FC = () => {
             </Tooltip>
           </Popconfirm>
         </Space>
-      ),
+        )
+      },
     },
   ]
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <>
       {contextHolder}
 
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Breadcrumb
-            items={[{ title: 'Quản lý' }, { title: 'Danh mục sản phẩm' }]}
-            style={{ marginBottom: 8 }}
-          />
-          <Title level={3} style={{ margin: 0 }}>Danh mục sản phẩm</Title>
-          <Text type="secondary">
-            Phân loại và tổ chức sản phẩm một cách hệ thống
-          </Text>
-        </Col>
-        <Col>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleAddRoot}
-            size="large"
-            style={{ borderRadius: 8, padding: '0 24px', boxShadow: '0 4px 12px rgba(88,86,214,0.3)' }}
-          >
-            Thêm danh mục
-          </Button>
-        </Col>
-      </Row>
+      <div style={{ marginBottom: 24 }}>
+        <Title level={3} style={{ margin: 0 }}>Danh mục sản phẩm</Title>
+        <Text type="secondary">Phân loại và tổ chức sản phẩm theo cấu trúc cây</Text>
+      </div>
 
-      <Card
-        variant="borderless"
-        styles={{ body: { padding: '20px' } }}
-        style={{ marginBottom: 16, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
-      >
-        <Input.Search
-          placeholder="Tìm kiếm danh mục theo tên hoặc mã..."
-          allowClear
-          enterButton={<SearchOutlined />}
-          size="large"
-          onSearch={(v) => setSearchText(v)}
-          onChange={(e) => !e.target.value && setSearchText('')}
-          style={{ maxWidth: 600 }}
-        />
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Từ khóa">
+              <Input.Search
+                placeholder="Tìm theo tên hoặc mã danh mục..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={handleSearch}
+                onChange={(e) => !e.target.value && setSearchText('')}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterActions>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddRoot}>
+              Thêm danh mục
+            </Button>
+          </ListFilterActions>
+        </ListFilterGrid>
+      </ListFilterCard>
 
-      <Card
-        styles={{ body: { padding: 0 } }}
-        variant="borderless"
-        style={{ borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}
-      >
-        <Table
-          columns={columns}
-          dataSource={treeData}
-          rowKey={(record) => record.id ?? record.code}
-          loading={isLoading}
-          pagination={false}
-          expandable={{
-            defaultExpandAllRows: true, // Auto expand so it feels like a fully populated list
-          }}
-          rowClassName={() => 'category-row'}
-          onRow={(record) => ({
-            style: { cursor: 'pointer' },
-            onClick: () => handleEdit(record)
-          })}
-        />
-      </Card>
+      <AppTable
+        columns={columns}
+        dataSource={treeData}
+        rowKey={(record) => String(record.id ?? record.code)}
+        loading={isLoading}
+        pagination={false}
+        scroll={{ x: 900 }}
+        expandable={{
+          defaultExpandAllRows: true,
+        }}
+        onRow={(record) => ({
+          style: { cursor: 'pointer' },
+          onClick: () => handleEdit(record),
+        })}
+      />
 
       <Modal
-        title={
-          <Space>
-            {editingCategory ? <EditOutlined style={{ color: token.colorPrimary }} /> : <PlusOutlined style={{ color: token.colorPrimary }} />}
-            <span style={{ fontSize: 18 }}>{editingCategory ? 'Sửa danh mục' : 'Thêm danh mục mới'}</span>
-          </Space>
-        }
+        title={editingCategory ? 'Sửa danh mục' : 'Thêm danh mục mới'}
         open={formOpen}
         onOk={() => form.submit()}
         onCancel={() => setFormOpen(false)}
@@ -383,35 +456,38 @@ const CategoryListView: React.FC = () => {
         okText={editingCategory ? 'Lưu thay đổi' : 'Tạo mới'}
         cancelText="Hủy"
         destroyOnHidden
-        centered
         width={500}
-        styles={{ body: { paddingTop: 20 } }}
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
           <Form.Item
             name="code"
-            label={<Text strong>Mã danh mục</Text>}
+            label="Mã danh mục"
             rules={[{ required: true, message: 'Vui lòng nhập mã danh mục!' }]}
           >
             <Input
-              size="large"
               placeholder="VD: MENSWEAR, SHIRTS..."
               disabled={!!editingCategory}
-              style={{ borderRadius: 6 }}
             />
           </Form.Item>
 
           <Form.Item
             name="name"
-            label={<Text strong>Tên danh mục</Text>}
+            label="Tên danh mục"
             rules={[{ required: true, message: 'Vui lòng nhập tên danh mục!' }]}
           >
-            <Input size="large" placeholder="VD: Trang phục nam" style={{ borderRadius: 6 }} />
+            <Input placeholder="VD: Trang phục nam" />
           </Form.Item>
 
-          <Form.Item name="parentId" label={<Text strong>Danh mục cha</Text>}>
+          <Form.Item
+            name="displayOrder"
+            label="Thứ tự hiển thị"
+            tooltip="Số nhỏ hơn sẽ hiển thị trước trong cùng nhóm danh mục cha"
+          >
+            <InputNumber min={0} className="w-full" />
+          </Form.Item>
+
+          <Form.Item name="parentId" label="Danh mục cha">
             <Select
-              size="large"
               placeholder="— Không có (danh mục gốc) —"
               allowClear
               options={parentOptions}
@@ -422,7 +498,7 @@ const CategoryListView: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label={<Text strong>Hình ảnh danh mục</Text>}>
+          <Form.Item label="Hình ảnh danh mục">
             <Upload
               listType="picture-card"
               fileList={fileList}
@@ -440,13 +516,7 @@ const CategoryListView: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
-
-      <style>{`
-        .category-row:hover > td {
-          background-color: #f8f9fa !important;
-        }
-      `}</style>
-    </div>
+    </>
   )
 }
 

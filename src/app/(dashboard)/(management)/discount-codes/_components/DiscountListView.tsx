@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import {
-  Table, Card, Typography, Row, Col, Button, Input, Select,
+  Table, Typography, Button, Input, Select, Row, Col,
   Tag, Space, message, Popconfirm, Modal, Form, InputNumber,
   DatePicker, Switch, Divider, Tooltip,
 } from 'antd'
@@ -27,6 +27,14 @@ import {
   type DiscountType,
 } from '@/services/rest-api/app-api/discounts/discount-service'
 import AppTable from '@/shared/components/antd/AppTable'
+import {
+  ListFilterCard,
+  ListFilterCol,
+  ListFilterField,
+  ListFilterGrid,
+  LIST_FILTER_SEARCH_FLEX,
+  LIST_FILTER_SELECT_FLEX,
+} from '@/shared/components/list-filter'
 
 const { Title, Text } = Typography
 
@@ -451,40 +459,46 @@ const DiscountListView: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={16} md={8}>
-            <Input.Search
-              placeholder="Tìm mã, mô tả..."
-              allowClear
-              enterButton={<SearchOutlined />}
-              onSearch={(v) => setQueryParams((prev) => ({
-                ...prev,
-                code: v || undefined,
-                pageIndex: 0,
-              }))}
-            />
-          </Col>
-          <Col xs={12} sm={8} md={4}>
-            <Select
-              placeholder="Loại giảm giá"
-              allowClear
-              style={{ width: '100%' }}
-              options={TYPE_OPTIONS}
-              onChange={(v) => handleFilter('type', v)}
-            />
-          </Col>
-          <Col xs={12} sm={8} md={4}>
-            <Select
-              placeholder="Trạng thái"
-              allowClear
-              style={{ width: '100%' }}
-              options={STATUS_OPTIONS}
-              onChange={(v) => handleFilter('active', v)}
-            />
-          </Col>
-        </Row>
-      </Card>
+      <ListFilterCard>
+        <ListFilterGrid>
+          <ListFilterCol flex={LIST_FILTER_SEARCH_FLEX}>
+            <ListFilterField label="Mã / mô tả">
+              <Input.Search
+                placeholder="Tìm mã, mô tả..."
+                allowClear
+                enterButton={<SearchOutlined />}
+                onSearch={(v) => setQueryParams((prev) => ({
+                  ...prev,
+                  code: v || undefined,
+                  pageIndex: 0,
+                }))}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Loại giảm giá">
+              <Select
+                placeholder="Loại giảm giá"
+                allowClear
+                style={{ width: '100%' }}
+                options={TYPE_OPTIONS}
+                onChange={(v) => handleFilter('type', v)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+          <ListFilterCol flex={LIST_FILTER_SELECT_FLEX}>
+            <ListFilterField label="Trạng thái">
+              <Select
+                placeholder="Trạng thái"
+                allowClear
+                style={{ width: '100%' }}
+                options={STATUS_OPTIONS}
+                onChange={(v) => handleFilter('active', v)}
+              />
+            </ListFilterField>
+          </ListFilterCol>
+        </ListFilterGrid>
+      </ListFilterCard>
 
       {/* Table */}
       <AppTable

@@ -9,6 +9,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BellOutlined,
+  ShoppingCartOutlined,
 } from '@ant-design/icons'
 import { authService, UserInfo } from '@/services/rest-api/app-api/auth/authService'
 import { useAdminNotificationStream } from '@/shared/hooks/use-admin-notification-stream'
@@ -89,14 +90,40 @@ const AppHeader: React.FC<AppHeaderProps> = ({ collapsed, setCollapsed }) => {
                 background: item.read ? '#fff' : '#f6ffed',
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Text strong style={{ color: '#262626' }}>
-                  Đơn hàng mới #{item.payload.orderCode}
-                </Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {formatReceivedTime(item.receivedAt)} - Tổng tiền: {item.payload.totalAmount?.toLocaleString('vi-VN')} đ
-                </Text>
-              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      flexShrink: 0,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      border: '1px solid #f0f0f0',
+                      background: '#fafafa',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {item.payload.previewImageUrl ? (
+                      <img
+                        src={item.payload.previewImageUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <ShoppingCartOutlined style={{ color: '#bfbfbf', fontSize: 18 }} />
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                    <Text strong style={{ color: '#262626' }}>
+                      Đơn hàng mới #{item.payload.orderCode}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {formatReceivedTime(item.receivedAt)} - Tổng tiền: {item.payload.totalAmount?.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </div>
+                </div>
             </Button>
           ))}
         </Space>

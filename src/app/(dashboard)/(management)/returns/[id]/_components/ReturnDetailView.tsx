@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Card, Typography, Descriptions, Table, Tag, Button, Space,
   Divider, Spin, Breadcrumb, Row, Col, Statistic, message,
-  Steps, Alert, Input, Modal, Upload, Image, Select,
+  Steps, Alert, Input, Modal, Upload, Image, Select, InputNumber,
 } from 'antd'
 import {
   ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -26,14 +26,23 @@ import {
   completeRefund,
   cancelReturn,
   submitReturnQc,
+  updateReturnNotes,
   type ReturnRequestPojo,
   type ReturnRequestItemPojo,
 } from '@/services/rest-api/app-api/returns/return-service'
-import { getOrderById, type OrderPojo } from '@/services/rest-api/app-api/orders/order-service'
+import { getOrderById, type OrderPojo, type ProductPojo } from '@/services/rest-api/app-api/orders/order-service'
+import { PAYMENT_STATUS_CONFIG } from '@/constants/order-status'
+import { resolveOrderPaymentStatus } from '@/lib/order-refund'
+import { formatReturnReason } from '@/lib/return-reason'
 import { uploadImage } from '@/services/rest-api/app-api/media/media-service'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
+
+type ReturnDetailItemRow = Omit<ReturnRequestItemPojo, 'product'> & {
+  returnValue?: number
+  product?: ReturnRequestItemPojo['product'] | ProductPojo
+}
 
 // ── Status Config ────────────────────────────────────────────────
 
@@ -83,10 +92,13 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   const router = useRouter()
   const [messageApi, contextHolder] = message.useMessage()
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [approveModalOpen, setApproveModalOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
   const [qcModalOpen, setQcModalOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [approveNotes, setApproveNotes] = useState('')
+  const [approveRefundAmount, setApproveRefundAmount] = useState<number | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [refundProofUrl, setRefundProofUrl] = useState('')
   const [refundProofFileList, setRefundProofFileList] = useState<UploadFile[]>([])
@@ -118,12 +130,11 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   )
 
   const handleAction = async (
-    action: 'approve' | 'reject' | 'receive' | 'startRefund' | 'complete' | 'cancel',
+    action: 'reject' | 'receive' | 'startRefund' | 'complete' | 'cancel',
     reason?: string,
   ) => {
     try {
       switch (action) {
-        case 'approve':    await approveReturn(returnId); break
         case 'reject':     await rejectReturn(returnId, reason); break
         case 'receive':    await receiveReturn(returnId); break
         case 'startRefund': await startRefundProcessing(returnId); break
@@ -172,7 +183,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   const handleConfirmCompleteRefund = async () => {
     const proofUrl = refundProofUrl.trim()
     const reference = refundReference.trim()
-    if (ret?.refundMethod === 'BANK_TRANSFER' && !proofUrl && !reference) {
+    if (!proofUrl && !reference) {
       messageApi.error('Vui lòng tải ảnh biên lai chuyển khoản hoặc nhập mã giao dịch')
       return
     }
@@ -232,10 +243,16 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
   }
 
   const handleSaveNotes = async () => {
+    const nextNotes = notes.trim()
+    if (!nextNotes) {
+      messageApi.warning('Ghi chú không được để trống')
+      return
+    }
     setSavingNotes(true)
     try {
-      // Notes save would call updateReturnNotes if endpoint exists
+      await updateReturnNotes(returnId, nextNotes)
       messageApi.success('Ghi chú đã lưu')
+      mutate()
     } catch {
       messageApi.error('Lưu ghi chú thất bại')
     } finally {
@@ -298,7 +315,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
     totalValue: fallbackOrder?.totalValue,
     status: fallbackOrder?.status ?? fallbackOrder?.fulfillmentStatus,
   }
-  const displayItems = (ret.items ?? []).map((item) => {
+  const displayItems: ReturnDetailItemRow[] = (ret.items ?? []).map((item) => {
     const matchedDetail = (fallbackOrder?.details ?? []).find((detail) => {
       if (item.variantId && detail.variantId) {
         return Number(detail.variantId) === Number(item.variantId)
@@ -327,7 +344,15 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
               block
               type="primary"
               icon={<CheckCircleOutlined />}
-              onClick={() => handleAction('approve')}
+              onClick={() => {
+                const estimated = displayItems.reduce(
+                  (sum, item) => sum + (item.returnValue ?? 0),
+                  0,
+                )
+                setApproveRefundAmount(ret.refundAmount ?? (estimated > 0 ? estimated : null))
+                setApproveNotes('')
+                setApproveModalOpen(true)
+              }}
               style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
             >
               Duyệt yêu cầu
@@ -404,11 +429,11 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
 
   // ── Items table columns ─────────────────────────────────────────
 
-  const itemColumns: ColumnsType<ReturnRequestItemPojo> = [
+  const itemColumns: ColumnsType<ReturnDetailItemRow> = [
     {
       title: 'Sản phẩm',
       key: 'product',
-      render: (_: unknown, record: ReturnRequestItemPojo) => (
+      render: (_: unknown, record: ReturnDetailItemRow) => (
         <div>
           <Text strong>{record.product?.name ?? `Sản phẩm #${record.productId ?? record.variantId ?? record.id}`}</Text>
           {record.product?.barcode && (
@@ -425,7 +450,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
       key: 'image',
       width: 80,
       align: 'center' as const,
-      render: (_: unknown, record: ReturnRequestItemPojo) => {
+      render: (_: unknown, record: ReturnDetailItemRow) => {
         const img = record.product?.images?.[0]?.url
         if (!img) return <div style={{ width: 56, height: 56, background: '#f0f0f0', borderRadius: 4 }} />
         return (
@@ -446,7 +471,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
       key: 'returnPrice',
       width: 130,
       align: 'right' as const,
-      render: (_: unknown, record: ReturnRequestItemPojo & { returnValue?: number }) => (
+      render: (_: unknown, record: ReturnDetailItemRow) => (
         <Text type="secondary">{formatVND(record.returnValue)}</Text>
       ),
     },
@@ -455,13 +480,66 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
       dataIndex: 'reason',
       key: 'reason',
       ellipsis: true,
-      render: (r: string) => r || '—',
+      render: (r: string) => formatReturnReason(r),
     },
   ]
 
   return (
     <>
       {contextHolder}
+
+      {/* Approve Modal */}
+      <Modal
+        title="Duyệt yêu cầu trả hàng"
+        open={approveModalOpen}
+        onCancel={() => {
+          setApproveModalOpen(false)
+          setApproveNotes('')
+          setApproveRefundAmount(null)
+        }}
+        onOk={async () => {
+          if (!approveRefundAmount || approveRefundAmount <= 0) {
+            messageApi.error('Số tiền hoàn phải lớn hơn 0')
+            return
+          }
+          try {
+            await approveReturn(returnId, {
+              adminNotes: approveNotes || undefined,
+              refundAmount: approveRefundAmount,
+            })
+            messageApi.success('Đã duyệt yêu cầu trả hàng')
+            setApproveModalOpen(false)
+            setApproveNotes('')
+            setApproveRefundAmount(null)
+            mutate()
+          } catch {
+            messageApi.error('Duyệt yêu cầu thất bại')
+          }
+        }}
+        okText="Duyệt"
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text>Nhập số tiền dự kiến hoàn cho khách:</Text>
+          <InputNumber
+            min={1}
+            style={{ width: '100%' }}
+            value={approveRefundAmount ?? undefined}
+            onChange={(value) => setApproveRefundAmount(typeof value === 'number' ? value : null)}
+            formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            parser={(value) => Number((value ?? '').replace(/,/g, ''))}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Số tiền này sẽ được dùng khi xác nhận hoàn tiền. Hoàn một phần khi khách chỉ trả một số sản phẩm.
+          </Text>
+          <Text>Ghi chú nội bộ (tuỳ chọn):</Text>
+          <TextArea
+            rows={3}
+            placeholder="Ghi chú khi duyệt..."
+            value={approveNotes}
+            onChange={(e) => setApproveNotes(e.target.value)}
+          />
+        </Space>
+      </Modal>
 
       {/* Reject Modal */}
       <Modal
@@ -827,6 +905,20 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
                 <Descriptions.Item label="Tổng tiền đơn">
                   {formatVND(orderInfo?.totalValue)}
                 </Descriptions.Item>
+                {fallbackOrder && (
+                  <>
+                    <Descriptions.Item label="Thanh toán">
+                      {(() => {
+                        const paymentKey = resolveOrderPaymentStatus(fallbackOrder)
+                        const cfg = PAYMENT_STATUS_CONFIG[paymentKey] ?? {
+                          color: 'default',
+                          label: paymentKey,
+                        }
+                        return <Tag color={cfg.color}>{cfg.label}</Tag>
+                      })()}
+                    </Descriptions.Item>
+                  </>
+                )}
               </Descriptions>
               <Button
                 type="link"
@@ -851,7 +943,7 @@ const ReturnDetailView: React.FC<ReturnDetailViewProps> = ({ returnId }) => {
                 {formatDate(ret.lastModified)}
               </Descriptions.Item>
               <Descriptions.Item label="Lý do">
-                {ret.reason ?? '—'}
+                {formatReturnReason(ret.reason)}
               </Descriptions.Item>
             </Descriptions>
           </Card>

@@ -22,14 +22,14 @@ export default function PersonalizationView() {
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState<Partial<Record<RuleKey, number>>>({})
 
-  const { data, isLoading, mutate } = useAxiosSWR(
+  const { data, isLoading, mutate } = useAxiosSWR<ParamPojo[]>(
     [SWR_KEYS.PARAMS_BY_CATEGORY, 'personalization'],
     async () => getParamsByCategory('personalization'),
     { revalidateOnMount: true }
   )
 
   const rows = useMemo(() => {
-    const params = data?.data ?? []
+    const params = data ?? []
     return params.filter((p) => Object.hasOwn(RULE_LABELS, p.name as RuleKey))
   }, [data])
 
